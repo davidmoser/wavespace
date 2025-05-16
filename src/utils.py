@@ -1,4 +1,3 @@
-import argparse
 import json
 import pathlib
 import subprocess
@@ -52,22 +51,9 @@ def wav_to_spectrogram_image(
         out_img: str = "spectrogram.png",
         sr: int = 24_000,
         n_fft: int = 1024,
-        hop_ratio: float = 0.25,  # 75% overlap
+        hop: int = 128,
         cmap: str = "coolwarm"  # blue→red gradient
 ) -> None:
-    """
-    Convert a WAV/MP3 file to a log‑magnitude spectrogram PNG.
-    Low energy appears blue, high energy red (default 'coolwarm' colormap).
-
-    Parameters
-    ----------
-    in_wav   : input audio file (mono or stereo)
-    out_img  : output image file
-    sr       : target sampling rate
-    n_fft    : STFT size
-    hop_ratio: hop_length / n_fft
-    cmap     : any Matplotlib colormap with blue‑to‑red progression
-    """
     # load & resample ---------------------------------------------------------
     wav, orig_sr = torchaudio.load(in_wav, num_frames=1_000_000)
     wav = wav.mean(0, keepdim=True)  # mono
@@ -75,7 +61,6 @@ def wav_to_spectrogram_image(
         wav = torchaudio.functional.resample(wav, orig_sr, sr)
 
     # magnitude spectrogram ---------------------------------------------------
-    hop = int(n_fft * hop_ratio)
     spec = torch.stft(
         wav, n_fft=n_fft, hop_length=hop,
         window=torch.hann_window(n_fft), return_complex=True
@@ -88,6 +73,43 @@ def wav_to_spectrogram_image(
     # plot & save -------------------------------------------------------------
     plt.figure(figsize=(w / 100, h / 100))
     plt.imshow(spec_db[0], origin="lower", aspect="auto", cmap=cmap, interpolation="none")
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
+    plt.close()
+
+
+def wav_to_mel_spectrogram_image(
+        in_wav: str,
+        out_img: str = "mel_spectrogram.png",
+        sr: int = 24_000,
+        n_fft: int = 1024,
+        hop: int = 128,
+        n_mels: int = 1024//8,
+        cmap: str = "coolwarm"  # try magma
+) -> None:
+    """Convert a WAV/MP3 file to a log-magnitude mel-spectrogram PNG."""
+    # load & resample ---------------------------------------------------------
+    wav, orig_sr = torchaudio.load(in_wav, num_frames=1_000_000)
+    wav = wav.mean(0, keepdim=True)  # mono
+    if orig_sr != sr:
+        wav = torchaudio.functional.resample(wav, orig_sr, sr)
+
+    # mel spectrogram ---------------------------------------------------------
+    mel = torchaudio.transforms.MelSpectrogram(
+        sample_rate=sr,
+        n_fft=n_fft,
+        hop_length=hop,
+        n_mels=n_mels,
+        power=2.0  # magnitude² → power
+    )(wav)
+    spec_db = torchaudio.transforms.AmplitudeToDB(top_db=80)(mel)
+    h, w = spec_db.shape[-2:]
+
+    # plot & save -------------------------------------------------------------
+    plt.figure(figsize=(w / 100, h / 100))
+    plt.imshow(spec_db[0], origin="lower", aspect="auto",
+               cmap=cmap, interpolation="none")
     plt.axis("off")
     plt.tight_layout(pad=0)
     plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
