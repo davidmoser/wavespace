@@ -40,15 +40,20 @@ def main():
             wav = wav.to(args.device)
             with torch.no_grad():  # no grads for STFT
                 x = to_db(spec(wav)).unsqueeze(1)  # (B,1,F,T)
+                T = x.shape[-1]
+                T = T - T % 8
+                x = x[:, :, :, 0:T]
             y = model(x)
             loss = loss_fn(y, x)
             opt.zero_grad()
             loss.backward()
             opt.step()
             total += loss.item() * x.size(0)
+            print(".", end="")
+        print("")
         print(f"epoch {epoch:03d}  L1={total / len(ds):.4f}")
 
-    ckpt_dir = pathlib.Path("checkpoints")
+    ckpt_dir = pathlib.Path("../../resources/checkpoints")
     ckpt_dir.mkdir(exist_ok=True)
     torch.save(model.state_dict(), ckpt_dir / "audio_unet.pt")
 

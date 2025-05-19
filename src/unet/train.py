@@ -41,8 +41,8 @@ def main():
             total += loss.item() * x.size(0)
         print(f"epoch {epoch:03d}  L1={total / len(ds):.4f}")
 
-    pathlib.Path("checkpoints").mkdir(exist_ok=True)
-    torch.save(model.state_dict(), "checkpoints/audio_unet.pt")
+    pathlib.Path("../../resources/checkpoints").mkdir(exist_ok=True)
+    torch.save(model.state_dict(), "../../resources/checkpoints/audio_unet.pt")
 
 
 if __name__ == "__main__":
