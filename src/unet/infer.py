@@ -1,12 +1,18 @@
 import argparse
 import pathlib
-import re
 
 import matplotlib.pyplot as plt
 import torch
 import torchaudio
 
-from unet_arch_v1 import AudioUNet  # your model file
+version = 1
+
+if version == 1:
+    from unet_arch_v1 import AudioUNet
+elif version == 2:
+    from unet_arch_v2 import AudioUNet
+elif version == 3:
+    from unet_arch_v3 import AudioUNet
 
 
 def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
@@ -16,16 +22,15 @@ def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
     return x[tuple(sl)]
 
 
-def main():
+def main(version):
     p = argparse.ArgumentParser()
     p.add_argument("--in_wav", type=pathlib.Path, required=True,
                    help="input audio file (wav/mp3)")
-    p.add_argument("--ckpt", type=pathlib.Path, default="../../resources/checkpoints/audio_unet_v1.pt")
+    p.add_argument("--ckpt", type=pathlib.Path, default=f"../../resources/checkpoints/audio_unet_v{version}.pt")
     p.add_argument("--out_img", type=pathlib.Path, default=None)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
 
-    version = re.search(r"_(v\d\d?)\.pt$", args.ckpt.name).group(1)
     sr, n_fft, hop, n_mels = 22_050, 4096, 512, 256
     # load & trim audio
     wav, orig_sr = torchaudio.load(args.in_wav)
@@ -64,16 +69,16 @@ def main():
         ax.set_title(title)
         ax.axis("off")
     plt.tight_layout(pad=0)
-    out_img = args.out_img if args.out_img else args.in_wav.with_name(f"{args.in_wav.stem}_{version}.png")
+    out_img = args.out_img if args.out_img else args.in_wav.with_name(f"{args.in_wav.stem}_v{version}.png")
     plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
     plt.close()
     print(f"saved {out_img}")
 
     # save as wav
-    out_wav = args.in_wav.with_name(f"{args.in_wav.stem}_{version}.wav")
+    out_wav = args.in_wav.with_name(f"{args.in_wav.stem}_v{version}.wav")
 
     # 1. dB → power  (we used power-spectrograms: power=2)
-    mel_power = torchaudio.functional.DB_to_amplitude(y, ref=1.0, power=2.0)
+    mel_power = torchaudio.functional.DB_to_amplitude(y, ref=1.0, power=1.0)
 
     # 2. mel → linear-frequency power
     inv_mel = torchaudio.transforms.InverseMelScale(
@@ -93,4 +98,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(version)
