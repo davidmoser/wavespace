@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import torch
 import torchaudio
 
-from unet_arch_v3 import AudioUNet  # your model file
+from unet_arch_v1 import AudioUNet  # your model file
 
 
 def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
@@ -20,7 +20,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--in_wav", type=pathlib.Path, required=True,
                    help="input audio file (wav/mp3)")
-    p.add_argument("--ckpt", type=pathlib.Path, default="../../resources/checkpoints/audio_unet_v3.pt")
+    p.add_argument("--ckpt", type=pathlib.Path, default="../../resources/checkpoints/audio_unet_v1.pt")
     p.add_argument("--out_img", type=pathlib.Path, default=None)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
@@ -68,6 +68,28 @@ def main():
     plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
     plt.close()
     print(f"saved {out_img}")
+
+    # save as wav
+    out_wav = args.in_wav.with_name(f"{args.in_wav.stem}_{version}.wav")
+
+    # 1. dB → power  (we used power-spectrograms: power=2)
+    mel_power = torchaudio.functional.DB_to_amplitude(y, ref=1.0, power=2.0)
+
+    # 2. mel → linear-frequency power
+    inv_mel = torchaudio.transforms.InverseMelScale(
+        n_stft=n_fft // 2 + 1, n_mels=n_mels, sample_rate=sr).to(y.device)
+    S_power = inv_mel(mel_power)
+
+    # 3. power → magnitude, then Griffin–Lim (phase estimate)
+    S_mag = S_power.sqrt()  # magnitude
+    griffin = torchaudio.transforms.GriffinLim(
+        n_fft=n_fft, hop_length=hop, win_length=n_fft,
+        power=1.0, n_iter=32).to(y.device)
+    wav_hat = griffin(S_mag)  # (T,)
+
+    torchaudio.save(out_wav, wav_hat.unsqueeze(0), sr,
+                    encoding="PCM_S", bits_per_sample=16)
+    print(f"saved {out_wav}")
 
 
 if __name__ == "__main__":
