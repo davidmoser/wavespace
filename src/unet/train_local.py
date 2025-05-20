@@ -6,7 +6,7 @@ import torchaudio
 from torch.utils.data import DataLoader
 
 from src.AudioFolder import AudioFolder
-from unet_arch_v2 import AudioUNet
+from unet_arch_v3 import AudioUNet
 
 
 def main():
@@ -15,7 +15,7 @@ def main():
                    help="folder with raw audio files")
     p.add_argument("--batch", type=int, default=16)
     p.add_argument("--epochs", type=int, default=50)
-    p.add_argument("--lr", type=float, default=3e-4)
+    p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--sr", type=int, default=22_050, help="target sample rate")
     p.add_argument("--dur", type=float, default=4.0, help="audio crop length (s)")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -31,7 +31,8 @@ def main():
 
     model = AudioUNet().to(args.device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    loss_fn = torch.nn.L1Loss()
+    l1 = torch.nn.L1Loss()
+    # lambda_gate = 1e0  # strength of L1 penalty on gates
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -44,18 +45,20 @@ def main():
                 T = T - T % 16
                 x = x[:, :, :, 0:T]
             y = model(x)
-            loss = loss_fn(y, x)
+            # recon = l1(y, x)
+            # gate_l1 = torch.sigmoid(model.alpha1) + torch.sigmoid(model.alpha2) + torch.sigmoid(model.alpha3)
+            # loss = recon + lambda_gate * gate_l1
+            loss = l1(y, x)
             opt.zero_grad()
             loss.backward()
             opt.step()
             total += loss.item() * x.size(0)
             print(".", end="")
-        print("")
-        print(f"epoch {epoch:03d}  L1={total / len(ds):.4f}")
+        print(f"\nepoch {epoch:03d}  L1={total / len(ds):.4f}")
 
     ckpt_dir = pathlib.Path("../../resources/checkpoints")
     ckpt_dir.mkdir(exist_ok=True)
-    torch.save(model.state_dict(), ckpt_dir / "audio_unet_v2.pt")
+    torch.save(model.state_dict(), ckpt_dir / "audio_unet_v3.pt")
 
 
 if __name__ == "__main__":
