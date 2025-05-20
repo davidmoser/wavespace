@@ -1,10 +1,12 @@
 import argparse
-import matplotlib.pyplot as plt
 import pathlib
+import re
+
+import matplotlib.pyplot as plt
 import torch
 import torchaudio
 
-from unet_arch import AudioUNet  # your model file
+from unet_arch_v3 import AudioUNet  # your model file
 
 
 def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
@@ -18,11 +20,12 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--in_wav", type=pathlib.Path, required=True,
                    help="input audio file (wav/mp3)")
-    p.add_argument("--ckpt", type=pathlib.Path, default="../../resources/checkpoints/audio_unet.pt")
-    p.add_argument("--out_img", type=pathlib.Path, default="inference.png")
+    p.add_argument("--ckpt", type=pathlib.Path, default="../../resources/checkpoints/audio_unet_v3.pt")
+    p.add_argument("--out_img", type=pathlib.Path, default=None)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
 
+    version = re.search(r"_(v\d\d?)\.pt$", args.ckpt.name).group(1)
     sr, n_fft, hop, n_mels = 22_050, 4096, 512, 256
     # load & trim audio
     wav, orig_sr = torchaudio.load(args.in_wav)
@@ -40,7 +43,7 @@ def main():
 
     with torch.no_grad():  # no grad for STFT
         mel = to_db(spec(wav))  # (1, F, T)
-    mel = crop_to_multiple(mel, 8)  # F=256 already OK
+    mel = crop_to_multiple(mel, 16)  # F=256 already OK
     x = mel.unsqueeze(0).to(args.device)  # (1,1,F,T)
 
     # load model
@@ -61,9 +64,10 @@ def main():
         ax.set_title(title)
         ax.axis("off")
     plt.tight_layout(pad=0)
-    plt.savefig(args.out_img, dpi=100, bbox_inches="tight", pad_inches=0)
+    out_img = args.out_img if args.out_img else args.in_wav.with_name(f"{args.in_wav.stem}_{version}.png")
+    plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
     plt.close()
-    print(f"saved {args.out_img}")
+    print(f"saved {out_img}")
 
 
 if __name__ == "__main__":
