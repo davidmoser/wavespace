@@ -6,7 +6,7 @@ import torchaudio
 from torch.utils.data import DataLoader
 
 from src.AudioFolder import AudioFolder
-from unet_arch import AudioUNet
+from unet_arch_v2 import AudioUNet
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
             with torch.no_grad():  # no grads for STFT
                 x = to_db(spec(wav)).unsqueeze(1)  # (B,1,F,T)
                 T = x.shape[-1]
-                T = T - T % 8
+                T = T - T % 16
                 x = x[:, :, :, 0:T]
             y = model(x)
             loss = loss_fn(y, x)
@@ -55,7 +55,7 @@ def main():
 
     ckpt_dir = pathlib.Path("../../resources/checkpoints")
     ckpt_dir.mkdir(exist_ok=True)
-    torch.save(model.state_dict(), ckpt_dir / "audio_unet.pt")
+    torch.save(model.state_dict(), ckpt_dir / "audio_unet_v2.pt")
 
 
 if __name__ == "__main__":
