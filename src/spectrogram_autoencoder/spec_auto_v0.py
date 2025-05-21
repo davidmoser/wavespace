@@ -23,7 +23,7 @@ def up(in_ch, out_ch):
     )
 
 
-class AudioUNet(nn.Module):
+class SpecAutoNet(nn.Module):
     def __init__(self, base_ch: int = 64):
         super().__init__()
         self.enc1 = down(1, base_ch)  # /2   →  64 ch
@@ -50,7 +50,7 @@ class AudioUNet(nn.Module):
         F, T = x.shape[-2:]
         if (F % 8) or (T % 8):
             raise RuntimeError(
-                f"AudioUNet requires F and T divisible by 8 "
+                f"SpecAutoNet requires F and T divisible by 8 "
                 f"(got F={F}, T={T}). Pad or crop your spectrogram."
             )
 

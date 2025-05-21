@@ -11,7 +11,7 @@ class AudioFolder(Dataset):
 
     def __init__(self, root: pathlib.Path, sample_rate: int, duration: float,
                  exts=(".wav", ".flac", ".mp3", ".ogg")):
-        self.files = sorted([p for p in root.rglob("*") if p.suffix.lower() in exts])
+        self.files = [p for p in root.rglob("*") if p.suffix.lower() in exts and not p.name.startswith('.')]
         self.sr = sample_rate
         self.win = int(duration * sample_rate) if duration else None
 

@@ -5,14 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 import torchaudio
 
-version = 1
-
-if version == 1:
-    from unet_arch_v1 import AudioUNet
-elif version == 2:
-    from unet_arch_v2 import AudioUNet
-elif version == 3:
-    from unet_arch_v3 import AudioUNet
+from src.spectrogram_autoencoder.train_local import get_model
 
 
 def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
@@ -22,11 +15,11 @@ def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
     return x[tuple(sl)]
 
 
-def main(version):
+def main():
+    version = 4
     p = argparse.ArgumentParser()
-    p.add_argument("--in_wav", type=pathlib.Path, required=True,
-                   help="input audio file (wav/mp3)")
-    p.add_argument("--ckpt", type=pathlib.Path, default=f"../../resources/checkpoints/audio_unet_v{version}.pt")
+    p.add_argument("--in_wav", type=pathlib.Path, required=True, help="input audio file (wav/mp3)")
+    p.add_argument("--ckpt", type=pathlib.Path, default=f"../../resources/checkpoints/spec_auto_v{version}.pt")
     p.add_argument("--out_img", type=pathlib.Path, default=None)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
@@ -52,7 +45,7 @@ def main(version):
     x = mel.unsqueeze(0).to(args.device)  # (1,1,F,T)
 
     # load model
-    model = AudioUNet().to(args.device)
+    model = get_model(version).to(args.device)
     model.load_state_dict(torch.load(args.ckpt, map_location=args.device))
     model.eval()
 
@@ -98,4 +91,4 @@ def main(version):
 
 
 if __name__ == "__main__":
-    main(version)
+    main()

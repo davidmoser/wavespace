@@ -5,11 +5,27 @@ import torch
 import torchaudio
 from torch.utils.data import DataLoader
 
+from spec_auto_v1 import SpecAutoNet as NetV1
+from spec_auto_v2 import SpecAutoNet as NetV2
+from spec_auto_v3 import SpecAutoNet as NetV3
+from spec_auto_v4 import SpecAutoNet as NetV4
 from src.AudioFolder import AudioFolder
-from unet_arch_v3 import AudioUNet
+
+
+def get_model(version: int):
+    if version == 1:
+        return NetV1()
+    elif version == 2:
+        return NetV2()
+    elif version == 3:
+        return NetV3()
+    elif version == 4:
+        return NetV4()
+    raise ValueError(f"Unknown model version {version}")
 
 
 def main():
+    version = 4
     p = argparse.ArgumentParser()
     p.add_argument("--audio_dir", type=pathlib.Path, default="audio",
                    help="folder with raw audio files")
@@ -29,14 +45,17 @@ def main():
         n_mels=256, power=2.0).to(args.device)
     to_db = torchaudio.transforms.AmplitudeToDB(top_db=80).to(args.device)
 
-    model = AudioUNet().to(args.device)
+    model = get_model(version).to(args.device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     l1 = torch.nn.L1Loss()
     # lambda_gate = 1e0  # strength of L1 penalty on gates
 
+    print(f"Doing {args.epochs} epochs, with {len(loader) * args.batch} samples")
     for epoch in range(1, args.epochs + 1):
+        print("\nEpoch {}/{}".format(epoch, args.epochs))
         model.train()
         total = 0.0
+        count = 0
         for wav in loader:  # (B,T)
             wav = wav.to(args.device)
             with torch.no_grad():  # no grads for STFT
@@ -53,12 +72,15 @@ def main():
             loss.backward()
             opt.step()
             total += loss.item() * x.size(0)
+            count += 1
             print(".", end="")
-        print(f"\nepoch {epoch:03d}  L1={total / len(ds):.4f}")
+            if count % 10 == 0:
+                print(f"\nsamples {count * args.batch}  L1={total / 10 / args.batch:.4f}")
+                total = 0.0
 
     ckpt_dir = pathlib.Path("../../resources/checkpoints")
     ckpt_dir.mkdir(exist_ok=True)
-    torch.save(model.state_dict(), ckpt_dir / "audio_unet_v3.pt")
+    torch.save(model.state_dict(), ckpt_dir / f"spec_auto_v{version}.pt")
 
 
 if __name__ == "__main__":
