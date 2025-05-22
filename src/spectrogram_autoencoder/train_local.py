@@ -11,17 +11,19 @@ from spec_auto_v3 import SpecAutoNet as NetV3
 from spec_auto_v4 import SpecAutoNet as NetV4
 from src.AudioFolder import AudioFolder
 
+_MODEL_REGISTRY = {
+    1: NetV1,
+    2: NetV2,
+    3: NetV3,
+    4: NetV4,
+}
+
 
 def get_model(version: int):
-    if version == 1:
-        return NetV1()
-    elif version == 2:
-        return NetV2()
-    elif version == 3:
-        return NetV3()
-    elif version == 4:
-        return NetV4()
-    raise ValueError(f"Unknown model version {version}")
+    try:
+        return _MODEL_REGISTRY[version]()
+    except KeyError:
+        raise ValueError(f"Unknown model version {version}")
 
 
 def main():
