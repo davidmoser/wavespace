@@ -1,9 +1,7 @@
 """
-Input  shape : (B, 1, F, T)  – mono mag‑spectrogram
-Output shape : (B, 1, F, T)
-Final loss, 30 epochs, medley sample: 1.8
+cleaned up u net
+Final loss, 10 epochs, medley sample: 1.8
 """
-import torch
 import torch.nn as nn
 
 
@@ -34,9 +32,9 @@ class SpecAutoNet(nn.Module):
         self.up3 = up(4 * base_ch, 2 * base_ch)  # 512→128, /8→/4
         self.up2 = up(2 * base_ch, base_ch)  # 256→64, /4→/2
         self.up1 = up(base_ch, base_ch // 2)  # 128→1, /2→/1
-        self.dec4 = nn.Conv2d(8 * base_ch, 4 * base_ch, 3, padding=1)
-        self.dec3 = nn.Conv2d(4 * base_ch, 2 * base_ch, 3, padding=1)
-        self.dec2 = nn.Conv2d(2 * base_ch, 1 * base_ch, 3, padding=1)
+        self.dec4 = nn.Conv2d(4 * base_ch, 4 * base_ch, 3, padding=1)
+        self.dec3 = nn.Conv2d(2 * base_ch, 2 * base_ch, 3, padding=1)
+        self.dec2 = nn.Conv2d(1 * base_ch, 1 * base_ch, 3, padding=1)
         self.dec1 = nn.Conv2d(base_ch // 2, 1, 1)
 
     def forward(self, x, return_latent: bool = False):
@@ -52,8 +50,8 @@ class SpecAutoNet(nn.Module):
         e3 = self.enc3(e2)
         e4 = self.enc4(e3)
         d4 = self.up4(e4)
-        d3 = self.up3(self.dec4(torch.cat([d4, e3], 1)))
-        d2 = self.up2(self.dec3(torch.cat([d3, e2], 1)))
-        d1 = self.up1(self.dec2(torch.cat([d2, e1], 1)))
+        d3 = self.up3(self.dec4(d4))
+        d2 = self.up2(self.dec3(d3))
+        d1 = self.up1(self.dec2(d2))
         d0 = self.dec1(d1)
         return (d0, e4) if return_latent else d0
