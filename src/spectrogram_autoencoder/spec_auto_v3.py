@@ -1,5 +1,5 @@
 """
-cleaned up u net
+2D Convnet, residual connections
 Final loss, 10 epochs, medley sample: 1.8
 """
 import torch.nn as nn

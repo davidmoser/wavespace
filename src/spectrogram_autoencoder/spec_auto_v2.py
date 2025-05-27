@@ -1,6 +1,5 @@
 """
-Input  shape : (B, 1, F, T)  – mono mag‑spectrogram
-Output shape : (B, 1, F, T)
+2D-Convnet with weighed residual connections
 Final loss, 30 epochs, medley sample: 3.5
 """
 import torch

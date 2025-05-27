@@ -1,5 +1,5 @@
 """
-Only frequencies are transformed, all the way down to 1, everything in channels
+1D-Convnet, no residual connections
 Final loss, 1 epochs, medley: 13
 """
 import torch.nn as nn
