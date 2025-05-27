@@ -3,6 +3,7 @@ import pathlib
 
 import torch
 import torchaudio
+from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
 from spec_auto_v1 import SpecAutoNet as NetV1
@@ -49,8 +50,7 @@ def main():
 
     model = get_model(version).to(args.device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    l1 = torch.nn.L1Loss()
-    # lambda_gate = 1e0  # strength of L1 penalty on gates
+    scheduler = ExponentialLR(opt, gamma=1)
 
     print(f"Doing {args.epochs} epochs, with {len(loader) * args.batch} samples")
     for epoch in range(1, args.epochs + 1):
@@ -79,6 +79,7 @@ def main():
             if count % 10 == 0:
                 print(f"\nsamples {count * args.batch}  L1={total / 10 / args.batch:.4f}")
                 total = 0.0
+        scheduler.step()
 
     ckpt_dir = pathlib.Path("../../resources/checkpoints")
     ckpt_dir.mkdir(exist_ok=True)
