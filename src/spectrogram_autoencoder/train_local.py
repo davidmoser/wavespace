@@ -53,6 +53,7 @@ def main():
     model = get_model(version).to(args.device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     scheduler = ExponentialLR(opt, gamma=1)
+    l1 = torch.nn.L1Loss()
 
     print(f"Doing {args.epochs} epochs, with {len(loader) * args.batch} samples")
     for epoch in range(1, args.epochs + 1):
