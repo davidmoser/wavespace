@@ -32,7 +32,7 @@ def get_model(version: str):
 def main():
     version = "v4"
     p = argparse.ArgumentParser()
-    p.add_argument("--audio_dir", type=pathlib.Path, default="audio",
+    p.add_argument("--audio_dir", type=pathlib.Path, default="../../resources/Medley-solos-DB",
                    help="folder with raw audio files")
     p.add_argument("--batch", type=int, default=16)
     p.add_argument("--epochs", type=int, default=50)
@@ -79,7 +79,7 @@ def main():
             count += 1
             print(".", end="")
             if count % 10 == 0:
-                print(f"\nsamples {count * args.batch}  L1={total / 10 / args.batch:.4f}")
+                print(f"\nsamples {count * args.batch}  L={total / 10 / args.batch:.4f}")
                 total = 0.0
         scheduler.step()
 
