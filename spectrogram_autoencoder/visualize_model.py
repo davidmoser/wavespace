@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-from src.spectrogram_autoencoder.spec_auto_v3 import SpecAutoNet
+from spectrogram_autoencoder.spec_auto_v3 import SpecAutoNet
 
 
 def show_kernels_3x3(model: nn.Module, max_cols: int = 8, cmap: str = "coolwarm"):
@@ -37,5 +37,5 @@ def show_kernels_3x3(model: nn.Module, max_cols: int = 8, cmap: str = "coolwarm"
         plt.show()
 
 
-model = SpecAutoNet(); model.load_state_dict(torch.load("../../resources/checkpoints/spec_auto_v4.pt"))
+model = SpecAutoNet(); model.load_state_dict(torch.load("../resources/checkpoints/spec_auto_v4.pt"))
 show_kernels_3x3(model)

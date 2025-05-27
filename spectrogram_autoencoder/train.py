@@ -7,8 +7,8 @@ from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
 from src.AudioFolder import AudioFolder
-from src.spectrogram_autoencoder.models import get_model
-from src.spectrogram_autoencoder.configuration import load_config
+from spectrogram_autoencoder.models import get_model
+from spectrogram_autoencoder.configuration import load_config
 
 
 def main() -> None:
@@ -57,7 +57,7 @@ def main() -> None:
         print(f"\nsamples {count * cfg.batch}  L={total / count:.4f}")
         scheduler.step()
 
-    ckpt_dir = pathlib.Path("../../resources/checkpoints")
+    ckpt_dir = pathlib.Path("../resources/checkpoints")
     ckpt_dir.mkdir(exist_ok=True)
     torch.save(model.state_dict(), ckpt_dir / f"spec_auto_{cfg.version}.pt")
 

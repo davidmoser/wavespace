@@ -16,7 +16,7 @@ class Configuration:
     sr: int = 22_050  # sample-rate
     dur: float = 4.0  # crop length in seconds
     # data
-    audio_dir: str = "../../resources/Medley-solos-DB"
+    audio_dir: str = "../resources/Medley-solos-DB"
     # runtime
     device: str = "auto"  # "auto" → choose cuda if available, else cpu
 
