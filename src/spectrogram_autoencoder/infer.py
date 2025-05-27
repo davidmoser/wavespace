@@ -16,10 +16,10 @@ def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
 
 
 def main():
-    version = 4
+    version = "v4"
     p = argparse.ArgumentParser()
     p.add_argument("--in_wav", type=pathlib.Path, required=True, help="input audio file (wav/mp3)")
-    p.add_argument("--ckpt", type=pathlib.Path, default=f"../../resources/checkpoints/spec_auto_v{version}.pt")
+    p.add_argument("--ckpt", type=pathlib.Path, default=f"../../resources/checkpoints/spec_auto_{version}.pt")
     p.add_argument("--out_img", type=pathlib.Path, default=None)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
@@ -62,13 +62,13 @@ def main():
         ax.set_title(title)
         ax.axis("off")
     plt.tight_layout(pad=0)
-    out_img = args.out_img if args.out_img else args.in_wav.with_name(f"{args.in_wav.stem}_v{version}.png")
+    out_img = args.out_img if args.out_img else args.in_wav.with_name(f"{args.in_wav.stem}_{version}.png")
     plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
     plt.close()
     print(f"saved {out_img}")
 
     # save as wav
-    out_wav = args.in_wav.with_name(f"{args.in_wav.stem}_v{version}.wav")
+    out_wav = args.in_wav.with_name(f"{args.in_wav.stem}_{version}.wav")
 
     # 1. dB → power  (we used power-spectrograms: power=2)
     mel_power = torchaudio.functional.DB_to_amplitude(y, ref=1.0, power=1.0)

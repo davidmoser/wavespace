@@ -1,5 +1,6 @@
 import argparse
 import pathlib
+import re
 
 import torch
 import torchaudio
@@ -20,7 +21,8 @@ _MODEL_REGISTRY = {
 }
 
 
-def get_model(version: int):
+def get_model(version: str):
+    version = int(re.search(r'v(\d+)_?', version).group(1))
     try:
         return _MODEL_REGISTRY[version]()
     except KeyError:
@@ -28,7 +30,7 @@ def get_model(version: int):
 
 
 def main():
-    version = 4
+    version = "v4"
     p = argparse.ArgumentParser()
     p.add_argument("--audio_dir", type=pathlib.Path, default="audio",
                    help="folder with raw audio files")
@@ -83,7 +85,7 @@ def main():
 
     ckpt_dir = pathlib.Path("../../resources/checkpoints")
     ckpt_dir.mkdir(exist_ok=True)
-    torch.save(model.state_dict(), ckpt_dir / f"spec_auto_v{version}.pt")
+    torch.save(model.state_dict(), ckpt_dir / f"spec_auto_{version}.pt")
 
 
 if __name__ == "__main__":
