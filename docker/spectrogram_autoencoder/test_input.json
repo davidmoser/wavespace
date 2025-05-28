@@ -1,0 +1,10 @@
+{
+  "input": {
+    "version": "v4",
+    "batch": 32,
+    "epochs": 3,
+    "lr": 1e-3,
+    "audio_dir": "/data",
+    "save_model": false
+  }
+}

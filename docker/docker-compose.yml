@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  dependencies:
+    build:
+      context: ..
+      dockerfile: docker/dependencies.Dockerfile
+    image: gebregl/wavespace:dependencies
+
+  spectrogram_autoencoder:
+    build:
+      context: ..
+      dockerfile: docker/spectrogram_autoencoder/Dockerfile
+    image: gebregl/wavespace:spectrogram_autoencoder
+    volumes:
+      - /home/david/mine/projects/wavespace/resources/Medley-solos-DB-sample:/data:ro
