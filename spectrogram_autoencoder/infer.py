@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 import torchaudio
 
-from spectrogram_autoencoder.train import get_model
+from .train import get_model
 
 
 def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):

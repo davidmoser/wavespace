@@ -1,4 +1,3 @@
-
 import pathlib
 
 import torch
@@ -6,13 +5,12 @@ import torchaudio
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
-from src.AudioFolder import AudioFolder
-from spectrogram_autoencoder.models import get_model
-from spectrogram_autoencoder.configuration import load_config
+from .audio_folder import AudioFolder
+from .configuration import Configuration
+from .models import get_model
 
 
-def main() -> None:
-    cfg = load_config()
+def train(cfg: Configuration) -> None:
     dev = cfg.resolved_device
 
     ds = AudioFolder(pathlib.Path(cfg.audio_dir), cfg.sr, cfg.dur)
@@ -53,14 +51,14 @@ def main() -> None:
             count += 1
             print(".", end="")
 
-
-        print(f"\nsamples {count * cfg.batch}  L={total / count:.4f}")
+        print(f"\nL={total / count:.4f}")
         scheduler.step()
 
-    ckpt_dir = pathlib.Path("../resources/checkpoints")
-    ckpt_dir.mkdir(exist_ok=True)
-    torch.save(model.state_dict(), ckpt_dir / f"spec_auto_{cfg.version}.pt")
+    if cfg.save_model:
+        ckpt_dir = pathlib.Path("../resources/checkpoints")
+        ckpt_dir.mkdir(exist_ok=True)
+        ckpt_path = ckpt_dir / f"spec_auto_{cfg.version}.pt"
+        print(f"Saving model to {ckpt_path}")
+        torch.save(model.state_dict(), ckpt_path)
 
-
-if __name__ == "__main__":
-    main()
+    print("Done")

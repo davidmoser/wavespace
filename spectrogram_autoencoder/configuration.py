@@ -19,6 +19,7 @@ class Configuration:
     audio_dir: str = "../resources/Medley-solos-DB"
     # runtime
     device: str = "auto"  # "auto" → choose cuda if available, else cpu
+    save_model: bool = True
 
     # helper so we don’t repeat the decision everywhere
     @property
