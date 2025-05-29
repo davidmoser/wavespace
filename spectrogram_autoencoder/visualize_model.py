@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 
-from .spec_auto_v3 import SpecAutoNet
+from spectrogram_autoencoder.spec_auto_v3 import SpecAutoNet
 
 
 def show_kernels_3x3(model: nn.Module, max_cols: int = 8, cmap: str = "coolwarm"):

@@ -23,7 +23,7 @@ import torch
 import torchaudio
 from sklearn.decomposition import PCA
 
-from .spec_auto_v3 import SpecAutoNet  # same model file as before
+from spectrogram_autoencoder.spec_auto_v3 import SpecAutoNet  # same model file as before
 
 SR, N_FFT, HOP, N_MELS = 22_050, 4096, 512, 256
 spec = torchaudio.transforms.MelSpectrogram(

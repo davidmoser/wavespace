@@ -1,0 +1,11 @@
+{
+  "input": {
+    "version": "v4",
+    "batch": 32,
+    "epochs": 30,
+    "lr": 1e-3,
+    "audio_dir": "/runpod-volume/Medley-solos-DB",
+    "ckpt_dir": "/runpod-volume/checkpoints",
+    "save_model": true
+  }
+}

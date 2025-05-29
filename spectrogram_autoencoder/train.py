@@ -5,9 +5,9 @@ import torchaudio
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
-from .audio_folder import AudioFolder
-from .configuration import Configuration
-from .models import get_model
+from spectrogram_autoencoder.audio_folder import AudioFolder
+from spectrogram_autoencoder.configuration import Configuration
+from spectrogram_autoencoder.models import get_model
 
 
 def train(cfg: Configuration) -> None:
