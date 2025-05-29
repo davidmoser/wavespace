@@ -1,0 +1,8 @@
+{
+  "input": {
+    "batch": 128,
+    "audio_dir": "/resources/Medley-solos-DB-sample",
+    "spec_file": "/resources/spectrograms.pt",
+    "num_workers": 0
+  }
+}

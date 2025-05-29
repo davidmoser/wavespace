@@ -8,16 +8,15 @@ import torch
 @dataclass
 class Configuration:
     # model / training
-    version: str = "v4"
-    epochs: int = 50
     batch: int = 16
-    lr: float = 1e-3
+    sr: int = 22_050  # sample-rate
+    dur: float = 4.0  # crop length in seconds
     # data
+    audio_dir: str = "../resources/Medley-solos-DB"
     spec_file: str = "../resources/spectrograms.pt"
-    ckpt_dir: str = "../resources/checkpoints"
     # runtime
     device: str = "auto"  # "auto" → choose cuda if available, else cpu
-    save_model: bool = True
+    num_workers: int = 4
 
     # helper so we don’t repeat the decision everywhere
     @property

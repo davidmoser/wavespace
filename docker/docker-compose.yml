@@ -7,10 +7,18 @@ services:
       dockerfile: docker/Dockerfile
     image: gebregl/wavespace-dependencies:v1
 
+  spectrogram_converter:
+    build:
+      context: ..
+      dockerfile: docker/spectrogram_converter/Dockerfile
+    image: gebregl/wavespace-spectrogram-converter:v1
+    volumes:
+      - /home/david/mine/projects/wavespace/resources:/resources
+
   spectrogram_autoencoder:
     build:
       context: ..
       dockerfile: docker/spectrogram_autoencoder/Dockerfile
-    image: gebregl/wavespace-spectrogram-autoencoder:v1
+    image: gebregl/wavespace-spectrogram-autoencoder:v6
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources

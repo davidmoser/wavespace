@@ -1,26 +1,20 @@
 import pathlib
 
 import torch
-import torchaudio
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
-from spectrogram_autoencoder.audio_folder import AudioFolder
 from spectrogram_autoencoder.configuration import Configuration
 from spectrogram_autoencoder.models import get_model
 
 
 def train(cfg: Configuration) -> None:
     dev = cfg.resolved_device
+    print(f"Using device: {dev}")
 
-    ds = AudioFolder(pathlib.Path(cfg.audio_dir), cfg.sr, cfg.dur)
-    loader = DataLoader(ds, batch_size=cfg.batch,
-                        shuffle=True, pin_memory=True, drop_last=True)
-
-    spec = torchaudio.transforms.MelSpectrogram(
-        sample_rate=cfg.sr, n_fft=4096, hop_length=512,
-        n_mels=256, power=2.0).to(dev)
-    to_db = torchaudio.transforms.AmplitudeToDB(top_db=80).to(dev)
+    data = torch.load(cfg.spec_file, mmap=True, map_location=dev)
+    loader = DataLoader(data, batch_size=cfg.batch,
+                        shuffle=True, pin_memory=False, num_workers=0)
 
     model = get_model(cfg.version).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
@@ -35,12 +29,8 @@ def train(cfg: Configuration) -> None:
         model.train()
         total = 0.0
         count = 0
-        for wav in loader:  # (B,T)
-            wav = wav.to(dev)
-            with torch.no_grad():  # no grads for STFT
-                x = to_db(spec(wav)).unsqueeze(1)  # (B,1,F,T)
-                T = x.shape[-1] - x.shape[-1] % 16
-                x = x[:, :, :, :T]
+        for wav in loader:  # (B,F,T)
+            x = wav.to(dev).unsqueeze(1).float()
             y = model(x)
             loss = l1(y, x)
             opt.zero_grad()
