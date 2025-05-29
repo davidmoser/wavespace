@@ -1,4 +1,4 @@
-FROM gebregl/wavespace:dependencies
+FROM gebregl/wavespace-dependencies:v1
 WORKDIR /
 
 COPY /docker/spectrogram_autoencoder/rp_handler.py /rp_handler.py

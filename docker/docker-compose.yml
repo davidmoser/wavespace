@@ -4,13 +4,13 @@ services:
   dependencies:
     build:
       context: ..
-      dockerfile: docker/dependencies.Dockerfile
-    image: gebregl/wavespace:dependencies
+      dockerfile: docker/Dockerfile
+    image: gebregl/wavespace-dependencies:v1
 
   spectrogram_autoencoder:
     build:
       context: ..
       dockerfile: docker/spectrogram_autoencoder/Dockerfile
-    image: gebregl/wavespace:spectrogram_autoencoder
+    image: gebregl/wavespace-spectrogram-autoencoder:v1
     volumes:
-      - /home/david/mine/projects/wavespace/resources/Medley-solos-DB-sample:/data:ro
+      - /home/david/mine/projects/wavespace/resources:/resources

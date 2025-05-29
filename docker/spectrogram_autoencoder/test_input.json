@@ -4,7 +4,8 @@
     "batch": 32,
     "epochs": 3,
     "lr": 1e-3,
-    "audio_dir": "/data",
-    "save_model": false
+    "audio_dir": "../../resources/Medley-solos-DB-sample",
+    "ckpt_dir": "../../resources/checkpoints",
+    "save_model": true
   }
 }
