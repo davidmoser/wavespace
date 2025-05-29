@@ -17,6 +17,7 @@ class Configuration:
     dur: float = 4.0  # crop length in seconds
     # data
     audio_dir: str = "../resources/Medley-solos-DB"
+    ckpt_dir: str = "../resources/checkpoints"
     # runtime
     device: str = "auto"  # "auto" → choose cuda if available, else cpu
     save_model: bool = True

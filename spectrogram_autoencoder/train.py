@@ -55,7 +55,7 @@ def train(cfg: Configuration) -> None:
         scheduler.step()
 
     if cfg.save_model:
-        ckpt_dir = pathlib.Path("../resources/checkpoints")
+        ckpt_dir = pathlib.Path(cfg.ckpt_dir)
         ckpt_dir.mkdir(exist_ok=True)
         ckpt_path = ckpt_dir / f"spec_auto_{cfg.version}.pt"
         print(f"Saving model to {ckpt_path}")
