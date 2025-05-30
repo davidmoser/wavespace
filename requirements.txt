@@ -7,3 +7,4 @@ numpy>=2.1
 pandas~=2.2.3
 scikit-learn~=1.6.1
 soundfile>=0.13.1
+wandb>=0.19

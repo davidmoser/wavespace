@@ -5,7 +5,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: gebregl/wavespace-dependencies:v1
+    image: gebregl/wavespace-dependencies:v2
 
   spectrogram_converter:
     build:
@@ -19,6 +19,8 @@ services:
     build:
       context: ..
       dockerfile: docker/spectrogram_autoencoder/Dockerfile
-    image: gebregl/wavespace-spectrogram-autoencoder:v6
+    image: gebregl/wavespace-spectrogram-autoencoder:v9
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources
+    environment:
+      WANDB_API_KEY: ${WANDB_API_KEY}

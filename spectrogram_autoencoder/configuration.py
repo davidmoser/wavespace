@@ -2,8 +2,6 @@ import json
 import sys
 from dataclasses import dataclass
 
-import torch
-
 
 @dataclass
 class Configuration:
@@ -16,15 +14,7 @@ class Configuration:
     spec_file: str = "../resources/spectrograms.pt"
     ckpt_dir: str = "../resources/checkpoints"
     # runtime
-    device: str = "auto"  # "auto" → choose cuda if available, else cpu
     save_model: bool = True
-
-    # helper so we don’t repeat the decision everywhere
-    @property
-    def resolved_device(self) -> str:
-        if self.device == "auto":
-            return "cuda" if torch.cuda.is_available() else "cpu"
-        return self.device
 
 
 def load_config() -> Configuration:

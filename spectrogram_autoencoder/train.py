@@ -1,6 +1,8 @@
 import pathlib
+from dataclasses import asdict
 
 import torch
+import wandb
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
@@ -8,8 +10,21 @@ from spectrogram_autoencoder.configuration import Configuration
 from spectrogram_autoencoder.models import get_model
 
 
+def sweep_run(sweep_id: str):
+    def run():
+        wandb.init(project="spectrogram-autoencoder")
+        cfg = wandb.config
+        train(Configuration(**cfg.as_dict()))
+
+    wandb.agent(sweep_id, project="spectrogram-autoencoder", function=run)
+
+
+def single_run(cfg: Configuration):
+    wandb.init(project="spectrogram-autoencoder", config=asdict(cfg))
+
+
 def train(cfg: Configuration) -> None:
-    dev = cfg.resolved_device
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {dev}")
 
     data = torch.load(cfg.spec_file, mmap=True, map_location=dev)
@@ -24,6 +39,7 @@ def train(cfg: Configuration) -> None:
     num_samples = len(loader) * cfg.batch
     print(f"Training {cfg.version}: {cfg.epochs} epochs, {num_samples} samples")
 
+    step = 0
     for epoch in range(1, cfg.epochs + 1):
         print(f"\nEpoch {epoch}/{cfg.epochs}")
         model.train()
@@ -39,6 +55,9 @@ def train(cfg: Configuration) -> None:
 
             total += loss.item()
             count += 1
+            step += 1
+
+            wandb.log({"loss": loss.item(), "epoch": epoch, "step": step})
             print(".", end="")
 
         print(f"\nL={total / count:.4f}")

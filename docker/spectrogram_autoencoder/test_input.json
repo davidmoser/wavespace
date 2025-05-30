@@ -1,11 +1,5 @@
 {
   "input": {
-    "version": "v4",
-    "batch": 32,
-    "epochs": 3,
-    "lr": 1e-3,
-    "spec_file": "/resources/spectrograms.pt",
-    "ckpt_dir": "/resources/checkpoints",
-    "save_model": true
+    "sweep_id": "hpbqzni3"
   }
 }
