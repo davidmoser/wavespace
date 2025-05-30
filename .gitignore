@@ -2,3 +2,5 @@
 /.idea
 /scripts/test.py
 /notes.txt
+wandb
+/.env
