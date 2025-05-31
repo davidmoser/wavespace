@@ -10,6 +10,8 @@ class Configuration:
     epochs: int = 50
     batch: int = 16
     lr: float = 1e-3
+    lr_decay: float = 0.6
+    base_ch: int = 4
     # data
     spec_file: str = "../resources/spectrograms.pt"
     ckpt_dir: str = "../resources/checkpoints"

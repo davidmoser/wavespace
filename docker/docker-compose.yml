@@ -19,7 +19,7 @@ services:
     build:
       context: ..
       dockerfile: docker/spectrogram_autoencoder/Dockerfile
-    image: gebregl/wavespace-spectrogram-autoencoder:v9
+    image: gebregl/wavespace-spectrogram-autoencoder:v11
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources
     environment:

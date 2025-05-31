@@ -1,3 +1,4 @@
+import os
 import pathlib
 from dataclasses import asdict
 
@@ -10,16 +11,15 @@ from spectrogram_autoencoder.configuration import Configuration
 from spectrogram_autoencoder.models import get_model
 
 
-def sweep_run(sweep_id: str):
-    def run():
-        wandb.init(project="spectrogram-autoencoder")
-        cfg = wandb.config
-        train(Configuration(**cfg.as_dict()))
-
-    wandb.agent(sweep_id, project="spectrogram-autoencoder", function=run)
+def sweep_run():
+    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
+    wandb.init(project="spectrogram-autoencoder")
+    cfg = wandb.config
+    train(Configuration(**cfg.as_dict()))
 
 
 def single_run(cfg: Configuration):
+    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
     wandb.init(project="spectrogram-autoencoder", config=asdict(cfg))
 
 
@@ -31,9 +31,9 @@ def train(cfg: Configuration) -> None:
     loader = DataLoader(data, batch_size=cfg.batch,
                         shuffle=True, pin_memory=False, num_workers=0)
 
-    model = get_model(cfg.version).to(dev)
+    model = get_model(cfg.version, cfg.base_ch).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
-    scheduler = ExponentialLR(opt, gamma=1.0)
+    scheduler = ExponentialLR(opt, gamma=cfg.lr_decay)
     l1 = torch.nn.L1Loss()
 
     num_samples = len(loader) * cfg.batch

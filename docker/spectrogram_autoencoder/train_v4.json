@@ -4,6 +4,8 @@
     "batch": 512,
     "epochs": 30,
     "lr": 1e-3,
+    "lr_decay": 0.8,
+    "base_ch": 4,
     "spec_file": "/runpod-volume/spectrograms.pt",
     "ckpt_dir": "/runpod-volume/checkpoints",
     "save_model": true
