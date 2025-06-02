@@ -13,14 +13,14 @@ sweep_cfg = {
     "program": "sweep_run.py",
     "method": "random",
     "metric": {"name": "loss", "goal": "minimize"},
-    "run_cap": 100,
+    "run_cap": 30,
     "parameters": {
-        "lr": {"min": 1e-3, "max": 1e-1, "distribution": "log_uniform_values"},
-        "lr_decay": {"value": 0.9},
-        "batch": {"values": [128, 256, 512]},
+        "lr": {"value": 0.005},  # {"min": 1e-3, "max": 1e-1, "distribution": "log_uniform_values"},
+        "lr_decay": {"values": [0.5, 0.9, 1]},
+        "batch": {"value": 128},
         "version": {"value": "v4"},
-        "epochs": {"value": 1},
-        "base_ch": {"values": [4, 8, 16]},
+        "epochs": {"value": 10},
+        "base_ch": {"values": [4, 16]},
         "spec_file": {"value": f"{volume}/spectrograms.pt"},
         "save_model": {"value": False},
     }
@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     if is_runpod:
         RUNPOD_KEY = os.environ["RUNPOD_API_KEY"]
-        payload = {"input": {"sweep_id": sweep_id}}
+        payload = {"input": {"sweep_id": f"david-moser-ggg/spectrogram-autoencoder/{sweep_id}"}}
         headers = {"Authorization": f"Bearer {RUNPOD_KEY}"}
         r = requests.post(f"https://api.runpod.ai/v2/{ENDPOINT}/run",
                           json=payload, headers=headers)

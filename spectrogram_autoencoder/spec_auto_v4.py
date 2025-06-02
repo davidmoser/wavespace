@@ -1,6 +1,6 @@
 """
 1D-Convnet, no residual connections
-Final loss, 30 epochs, medley: 4.2
+Final loss, 50 epochs, medley: 2
 """
 import torch.nn as nn
 

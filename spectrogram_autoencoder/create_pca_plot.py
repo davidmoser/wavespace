@@ -23,7 +23,7 @@ import torch
 import torchaudio
 from sklearn.decomposition import PCA
 
-from spectrogram_autoencoder.spec_auto_v3 import SpecAutoNet  # same model file as before
+from spectrogram_autoencoder.models import get_model
 
 SR, N_FFT, HOP, N_MELS = 22_050, 4096, 512, 256
 spec = torchaudio.transforms.MelSpectrogram(
@@ -52,11 +52,12 @@ def wav_to_mel(path: pathlib.Path) -> torch.Tensor:
 
 
 def main():
+    version = "v4"
     p = argparse.ArgumentParser()
     p.add_argument("--data_dir", type=pathlib.Path, required=True)
     p.add_argument("--labels_csv", type=pathlib.Path, required=True)
     p.add_argument("--ckpt", type=pathlib.Path,
-                   default="../../resources/checkpoints/spec_auto_v3_brass.pt")
+                   default=f"../resources/checkpoints/spec_auto_{version}.pt")
     p.add_argument("--out_plot", type=pathlib.Path, default="latent_pca.png")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--include_pc34", default=False)
@@ -67,7 +68,7 @@ def main():
     label_for_uuid = dict(zip(df["uuid4"], df["instrument"]))
 
     # load model
-    model = SpecAutoNet().to(args.device)
+    model = get_model(version, base_ch=16).to(args.device)
     model.load_state_dict(torch.load(args.ckpt, map_location=args.device))
     model.eval()
 

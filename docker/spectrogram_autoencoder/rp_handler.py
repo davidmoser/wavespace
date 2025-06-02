@@ -4,7 +4,7 @@ from typing import Any
 import runpod
 
 from spectrogram_autoencoder.configuration import Configuration
-from spectrogram_autoencoder.train import single_run
+from spectrogram_autoencoder.train_autoencoder import single_run
 
 
 def handler(event: dict[str, Any]) -> str:

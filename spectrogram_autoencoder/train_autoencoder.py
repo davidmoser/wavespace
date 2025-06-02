@@ -21,6 +21,7 @@ def sweep_run():
 def single_run(cfg: Configuration):
     wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
     wandb.init(project="spectrogram-autoencoder", config=asdict(cfg))
+    train(cfg)
 
 
 def train(cfg: Configuration) -> None:

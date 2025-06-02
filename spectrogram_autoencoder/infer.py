@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import torch
 import torchaudio
 
-from spectrogram_autoencoder.train import get_model
+from spectrogram_autoencoder.train_autoencoder import get_model
 
 
 def crop_to_multiple(x: torch.Tensor, m: int = 8, dims=(-2, -1)):
@@ -19,7 +19,7 @@ def main():
     version = "v4"
     p = argparse.ArgumentParser()
     p.add_argument("--in_wav", type=pathlib.Path, required=True, help="input audio file (wav/mp3)")
-    p.add_argument("--ckpt", type=pathlib.Path, default=f"../../resources/checkpoints/spec_auto_{version}.pt")
+    p.add_argument("--ckpt", type=pathlib.Path, default=f"../resources/checkpoints/spec_auto_{version}.pt")
     p.add_argument("--out_img", type=pathlib.Path, default=None)
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = p.parse_args()
@@ -45,7 +45,7 @@ def main():
     x = mel.unsqueeze(0).to(args.device)  # (1,1,F,T)
 
     # load model
-    model = get_model(version).to(args.device)
+    model = get_model(version, base_ch=16).to(args.device)
     model.load_state_dict(torch.load(args.ckpt, map_location=args.device))
     model.eval()
 
