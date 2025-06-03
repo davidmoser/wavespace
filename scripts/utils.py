@@ -1,4 +1,5 @@
 import json
+import math
 import pathlib
 import subprocess
 from pathlib import Path
@@ -85,7 +86,7 @@ def wav_to_mel_spectrogram_image(
         sr: int = 24_000,
         n_fft: int = 1024,
         hop: int = 128,
-        n_mels: int = 1024//8,
+        n_mels: int = 1024 // 8,
         cmap: str = "coolwarm"  # try magma
 ) -> None:
     """Convert a WAV/MP3 file to a log-magnitude mel-spectrogram PNG."""
@@ -104,6 +105,47 @@ def wav_to_mel_spectrogram_image(
         power=2.0  # magnitude² → power
     )(wav)
     spec_db = torchaudio.transforms.AmplitudeToDB(top_db=80)(mel)
+    h, w = spec_db.shape[-2:]
+
+    # plot & save -------------------------------------------------------------
+    plt.figure(figsize=(w / 100, h / 100))
+    plt.imshow(spec_db[0], origin="lower", aspect="auto",
+               cmap=cmap, interpolation="none")
+    plt.axis("off")
+    plt.tight_layout(pad=0)
+    plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
+    plt.close()
+
+
+def wav_to_log_spectrogram_image(
+        in_wav: str,
+        out_img: str = "log_spectrogram.png",
+        sr: int = 24_000,
+        n_fft: int = 4096,
+        hop: int = 512,
+        log_bins: int = 256,
+        cmap: str = "coolwarm"  # try magma
+) -> None:
+    """Convert a WAV/MP3 file to a log-magnitude mel-spectrogram PNG."""
+    # load & resample ---------------------------------------------------------
+    wav, orig_sr = torchaudio.load(in_wav, num_frames=1_000_000)
+    wav = wav.mean(0, keepdim=True)  # mono
+    if orig_sr != sr:
+        wav = torchaudio.functional.resample(wav, orig_sr, sr)
+
+    # log spectrogram ---------------------------------------------------------
+    spec_fft = torchaudio.transforms.Spectrogram(
+        n_fft=n_fft, hop_length=hop, power=2.0)(wav)  # (C=1, F, T)
+    n_bins = n_fft // 2 + 1
+    lower_k = 50 * n_fft // sr  # start at 50 Hz
+    upper_k = n_bins - 1  # highest freq of this FFT
+    idx_float = torch.exp(
+        torch.linspace(math.log(lower_k), math.log(upper_k), steps=log_bins)
+    )
+    indices = torch.round(idx_float).long().clamp_max(n_bins - 1)
+    spec_log = spec_fft[:, indices, :]
+
+    spec_db = torchaudio.transforms.AmplitudeToDB(top_db=80)(spec_log)
     h, w = spec_db.shape[-2:]
 
     # plot & save -------------------------------------------------------------
