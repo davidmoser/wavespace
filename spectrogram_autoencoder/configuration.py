@@ -13,7 +13,7 @@ class Configuration:
     lr_decay: float = 0.6
     base_ch: int = 4
     # data
-    spec_file: str = "../resources/spectrograms.pt"
+    spec_file: str = "../resources/melspectrograms.pt"
     ckpt_dir: str = "../resources/checkpoints"
     # runtime
     save_model: bool = True

@@ -11,9 +11,10 @@ class Configuration:
     batch: int = 16
     sr: int = 22_050  # sample-rate
     dur: float = 4.0  # crop length in seconds
+    type: str = "mel" # "mel" or "log"
     # data
     audio_dir: str = "../resources/Medley-solos-DB"
-    spec_file: str = "../resources/spectrograms.pt"
+    spec_file: str = "../resources/melspectrograms.pt"
     # runtime
     device: str = "auto"  # "auto" → choose cuda if available, else cpu
     num_workers: int = 4

@@ -4,6 +4,7 @@ import torch
 import torchaudio
 from torch.utils.data import DataLoader
 
+from scripts.utils import calculate_log_matrix
 from spectrogram_converter.audio_folder import AudioFolder
 from spectrogram_converter.configuration import Configuration
 
@@ -17,13 +18,22 @@ def convert(cfg: Configuration) -> None:
                         shuffle=True, pin_memory=True,
                         num_workers=cfg.num_workers)
 
-    spec = torchaudio.transforms.MelSpectrogram(
-        sample_rate=cfg.sr, n_fft=4096, hop_length=512,
-        n_mels=256, power=2.0).to(dev)
+    if cfg.type == "mel":
+        spec = torchaudio.transforms.MelSpectrogram(
+            sample_rate=cfg.sr, n_fft=4096, hop_length=512,
+            n_mels=256, power=2.0).to(dev)
+    elif cfg.type == "log":
+        spec_fft = torchaudio.transforms.Spectrogram(n_fft=4096, hop_length=512, power=2.0).to(dev)
+        W = calculate_log_matrix(n_fft=4096, sr=cfg.sr, log_bins=256)
+
+        def spec(x):
+            return torch.matmul(W, spec_fft(x))
+    else:
+        raise TypeError(f"Unknown type {cfg.type}")
+
     to_db = torchaudio.transforms.AmplitudeToDB(top_db=80).to(dev)
 
-    num_samples = len(loader) * cfg.batch
-    print(f"Converting: {num_samples} samples")
+    print(f"Converting: {len(ds)} samples")
 
     specs = []
     for wav in loader:  # (B,T)
