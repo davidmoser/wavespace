@@ -1,10 +1,10 @@
+import math
 import pathlib
 
 import torch
 import torchaudio
 from torch.utils.data import DataLoader
 
-from scripts.utils import calculate_log_matrix
 from spectrogram_converter.audio_folder import AudioFolder
 from spectrogram_converter.configuration import Configuration
 
@@ -47,3 +47,36 @@ def convert(cfg: Configuration) -> None:
     torch.save(specs, cfg.spec_file)
 
     print("Done")
+
+
+def calculate_log_matrix(n_fft, sr, log_bins) -> torch.Tensor:
+    n_bins = n_fft // 2 + 1
+    lower_k = 50 * n_fft // sr  # start at 50 Hz
+    upper_k = n_bins - 1  # highest freq of this FFT
+
+    edges = torch.exp(torch.linspace(math.log(lower_k), math.log(upper_k), steps=log_bins + 2))
+
+    min_width = 0.5  # ≥½ bin avoids degenerate triangles
+    edges[1:] = torch.maximum(edges[1:], edges[:-1] + min_width)
+
+    bins = torch.arange(n_bins, device=edges.device)[None, :].float()
+    l, c, r = edges[:-2, None], edges[1:-1, None], edges[2:, None]
+
+    den_l = (c - l).clamp_min(1e-6)  # ε-clamp
+    den_r = (r - c).clamp_min(1e-6)
+
+    left = ((bins - l) / den_l).clamp(0, 1) * (bins <= c)
+    right = ((r - bins) / den_r).clamp(0, 1) * (bins >= c)
+    W = left + right  # (B,F)
+
+    # fix any rows whose area stayed zero
+    row_sum = W.sum(1, keepdim=True)
+    deg = row_sum.squeeze() == 0
+    if deg.any():
+        centre_idx = c[deg, 0].round().long().clamp_max(n_bins - 1)
+        W[deg, :] = 0.0
+        W[deg, centre_idx] = 1.0
+        row_sum = W.sum(1, keepdim=True)  # now non-zero
+
+    W /= row_sum
+    return W
