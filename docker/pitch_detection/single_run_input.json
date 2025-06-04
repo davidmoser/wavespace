@@ -1,0 +1,17 @@
+{
+  "input": {
+    "batch": 512,
+    "epochs": 30,
+    "kernel_len": 128,
+    "lambda1": 1.0,
+    "lambda2": 1e-3,
+    "lambda3": 1e-4,
+    "lr": 1e-3,
+    "lr_decay": 0.8,
+    "base_ch": 4,
+    "spec_file": "/runpod-volume/logspectrograms.pt",
+    "ckpt_dir": "/runpod-volume/checkpoints",
+    "save_model": true
+  }
+}
+

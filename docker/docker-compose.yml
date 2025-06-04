@@ -22,3 +22,13 @@ services:
       - /home/david/mine/projects/wavespace/resources:/resources
     environment:
       WANDB_API_KEY: ${WANDB_API_KEY}
+
+  pitch_detection:
+    build:
+      context: ..
+      dockerfile: docker/pitch_detection/Dockerfile
+    image: gebregl/wavespace-pitch-detection:v1
+    volumes:
+      - /home/david/mine/projects/wavespace/resources:/resources
+    environment:
+      WANDB_API_KEY: ${WANDB_API_KEY}
