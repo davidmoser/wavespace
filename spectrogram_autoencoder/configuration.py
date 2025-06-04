@@ -17,12 +17,3 @@ class Configuration:
     ckpt_dir: str = "../resources/checkpoints"
     # runtime
     save_model: bool = True
-
-
-def load_config() -> Configuration:
-    """Read a JSON object from STDIN and build a WsConfiguration."""
-    raw: str = sys.stdin.read()
-    if not raw.strip():  # empty ⇒ defaults
-        return Configuration()
-    cfg = json.loads(raw)
-    return Configuration(**cfg)

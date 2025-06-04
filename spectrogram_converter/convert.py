@@ -10,7 +10,7 @@ from spectrogram_converter.configuration import Configuration
 
 
 def convert(cfg: Configuration) -> None:
-    dev = cfg.resolved_device
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {dev}")
 
     ds = AudioFolder(pathlib.Path(cfg.audio_dir), cfg.sr, cfg.dur)
@@ -24,7 +24,7 @@ def convert(cfg: Configuration) -> None:
             n_mels=256, power=2.0).to(dev)
     elif cfg.type == "log":
         spec_fft = torchaudio.transforms.Spectrogram(n_fft=4096, hop_length=512, power=2.0).to(dev)
-        W = calculate_log_matrix(n_fft=4096, sr=cfg.sr, log_bins=256)
+        W = calculate_log_matrix(n_fft=4096, sr=cfg.sr, log_bins=256).to(dev)
 
         def spec(x):
             return torch.matmul(W, spec_fft(x))

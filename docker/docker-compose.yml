@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   dependencies:
     build:
@@ -11,7 +9,7 @@ services:
     build:
       context: ..
       dockerfile: docker/spectrogram_converter/Dockerfile
-    image: gebregl/wavespace-spectrogram-converter:v2
+    image: gebregl/wavespace-spectrogram-converter:v3
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources
 
