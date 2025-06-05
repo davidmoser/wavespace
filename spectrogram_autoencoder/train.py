@@ -58,7 +58,7 @@ def train(cfg: Configuration) -> None:
             count += 1
             step += 1
 
-            wandb.log({"loss": loss.item(), "epoch": epoch, "step": step})
+            wandb.log({"loss": loss.item(), "epoch": epoch}, step=step)
             print(".", end="")
 
         print(f"\nL={total / count:.4f}")

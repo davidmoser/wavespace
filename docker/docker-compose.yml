@@ -17,7 +17,7 @@ services:
     build:
       context: ..
       dockerfile: docker/spectrogram_autoencoder/Dockerfile
-    image: gebregl/wavespace-spectrogram-autoencoder:v12
+    image: gebregl/wavespace-spectrogram-autoencoder:v13
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources
     environment:
@@ -27,7 +27,7 @@ services:
     build:
       context: ..
       dockerfile: docker/pitch_detection/Dockerfile
-    image: gebregl/wavespace-pitch-detection:v1
+    image: gebregl/wavespace-pitch-detection:v2
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources
     environment:

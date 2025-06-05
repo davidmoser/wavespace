@@ -2,6 +2,7 @@ import os
 import pathlib
 from dataclasses import asdict
 
+import matplotlib.pyplot as plt
 import torch
 import wandb
 from torch.optim.lr_scheduler import ExponentialLR
@@ -24,12 +25,36 @@ def single_run(cfg: Configuration):
     train(cfg)
 
 
+def log_epoch_sample(model, spec_tensor, epoch):
+    """Log original spec, f0 map and reconstruction as one image."""
+    model.eval()
+    dev = next(model.parameters()).device
+    with torch.no_grad():
+        x = spec_tensor.unsqueeze(0).unsqueeze(0).float().to(dev)  # (1,1,F,T)
+        y, f = model(x)
+
+    x_np = x.squeeze().cpu().numpy()
+    f_np = f.sum(dim=1).squeeze().cpu().numpy()
+    y_np = y.squeeze().cpu().numpy()
+
+    fig, ax = plt.subplots(3, 1, figsize=(6, 7), constrained_layout=True)
+    for im, title, a in zip((x_np, f_np, y_np), ("original", "f0", "output"), ax):
+        a.imshow(im, aspect="auto", origin="lower", cmap="coolwarm")
+        a.set_title(title)
+        a.axis("off")
+
+    wandb.log({"epoch_samples": [wandb.Image(fig)]})
+    plt.close(fig)
+
+
 def train(cfg: Configuration):
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {dev}")
 
     data = torch.load(cfg.spec_file, mmap=True, map_location=dev)
     loader = DataLoader(data, batch_size=cfg.batch, shuffle=True, num_workers=0)
+
+    vis_spec = data[0].to(dev)
 
     model = PitchAutoencoder(cfg.base_ch, 32, cfg.kernel_len).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
@@ -59,9 +84,14 @@ def train(cfg: Configuration):
             step += 1
             print(".", end="")
             if wandb.run:
-                wandb.log({"loss": loss.item(), "epoch": epoch, "step": step})
+                wandb.log({"loss": loss.item()}, step=step)
+
         print("\n")
         print(f"Epoch {epoch:3d}: L={tot / cnt:.4f}")
+
+        if wandb.run:
+            log_epoch_sample(model, vis_spec, epoch)
+
         sch.step()
 
     if cfg.save_model:
