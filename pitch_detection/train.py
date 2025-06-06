@@ -67,6 +67,9 @@ def train(cfg: Configuration):
     sch = ExponentialLR(opt, gamma=cfg.lr_decay)
     l1 = torch.nn.L1Loss()
 
+    if wandb.run:
+        log_epoch_sample(model, vis_spec)
+
     step = 0
     for epoch in range(1, cfg.epochs + 1):
         model.train()

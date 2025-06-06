@@ -16,7 +16,13 @@ class SynthNet(nn.Module):
         self.kernel_len = kernel_len
         # trainable parameters for overtones (L-1 values per channel)
         # self.theta = nn.Parameter(torch.zeros(channels, kernel_len - 1)) # if we pin f0 to 1
-        self.conv = nn.Conv1d(in_channels=self.channels, out_channels=self.channels, kernel_size=self.kernel_len)
+        self.conv = nn.Conv1d(in_channels=self.channels, out_channels=self.channels, groups=self.channels,
+                              kernel_size=self.kernel_len, bias=False)
+
+        # initialize to identity
+        with torch.no_grad():
+            self.conv.weight.zero_()
+            self.conv.weight[:, :, 0] = 1.0
 
     def forward(self, x):  # (B,32,F,T)
         B, C, F_, T = x.shape
@@ -28,8 +34,8 @@ class SynthNet(nn.Module):
         # (B, C, F, T) -> (B, T, C, F) -> (B*T, C, F)
         x_ft = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F_)
         x_ft = F.pad(x_ft, (0, self.kernel_len - 1))
-        #y = F.conv1d(x_ft, kernel, groups=C)  # (B·T,32,F) # if we pin f0 to 1
+        # y = F.conv1d(x_ft, kernel, groups=C)  # (B·T,32,F) # if we pin f0 to 1
         y = self.conv(x_ft)
         y = y.view(B, T, C, F_).permute(0, 2, 3, 1).contiguous()
-        y = y.sum(dim=1, keepdim=True) # sum channels
+        y = y.sum(dim=1, keepdim=True)  # sum channels
         return y  # (B,1,F,T)
