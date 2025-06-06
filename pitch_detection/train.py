@@ -25,7 +25,7 @@ def single_run(cfg: Configuration):
     train(cfg)
 
 
-def log_epoch_sample(model, spec_tensor, epoch):
+def log_epoch_sample(model, spec_tensor):
     """Log original spec, f0 map and reconstruction as one image."""
     model.eval()
     dev = next(model.parameters()).device
@@ -57,6 +57,9 @@ def train(cfg: Configuration):
     vis_spec = data[0].to(dev)
 
     model = PitchAutoencoder(cfg.base_ch, 32, cfg.kernel_len).to(dev)
+    if cfg.init_pitch_det_net is not None:
+        model.pitch_det_net.load_state_dict(torch.load(cfg.init_pitch_det_net, map_location=dev))
+
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     sch = ExponentialLR(opt, gamma=cfg.lr_decay)
     l1 = torch.nn.L1Loss()
@@ -90,7 +93,7 @@ def train(cfg: Configuration):
         print(f"Epoch {epoch:3d}: L={tot / cnt:.4f}")
 
         if wandb.run:
-            log_epoch_sample(model, vis_spec, epoch)
+            log_epoch_sample(model, vis_spec)
 
         sch.step()
 

@@ -10,11 +10,11 @@ class PitchAutoencoder(nn.Module):
 
     def __init__(self, base_ch=16, out_ch=32, kernel_len=128):
         super().__init__()
-        self.f0_net = PitchDetNet(base_ch, out_ch)
+        self.pitch_det_net = PitchDetNet(base_ch, out_ch)
         self.synth = SynthNet(out_ch, kernel_len)
 
     def forward(self, x):
-        f = F.softplus(self.f0_net(x))  # ensure a ≥ 0
+        f = F.softplus(self.pitch_det_net(x))  # ensure a ≥ 0
         s = self.synth(f)  # (B,1,F,T)
         return s, f
 

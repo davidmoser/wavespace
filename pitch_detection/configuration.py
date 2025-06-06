@@ -13,5 +13,6 @@ class Configuration:
     lambda1: float = 1.0  # entropy
     lambda2: float = 1e-3  # L1 activity
     lambda3: float = 1e-4  # Laplacian
+    init_pitch_det_net: str = None
     save_model: bool = True
     ckpt_dir: str = "./checkpoints"
