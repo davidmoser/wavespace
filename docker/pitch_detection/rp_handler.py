@@ -3,8 +3,8 @@ from typing import Any
 
 import runpod
 
+import pitch_detection.train as train
 from pitch_detection.configuration import Configuration
-from pitch_detection.train import single_run
 
 
 def handler(event: dict[str, Any]) -> str:
@@ -22,7 +22,7 @@ def handler(event: dict[str, Any]) -> str:
     else:
         cfg = Configuration(**input)
         print(f"Single run with configuration: {cfg}")
-        single_run(cfg)
+        train.single_run(cfg)
         return "Run finished"
 
 

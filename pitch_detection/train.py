@@ -1,5 +1,4 @@
 import os
-import pathlib
 from dataclasses import asdict
 
 import matplotlib.pyplot as plt
@@ -8,6 +7,7 @@ import wandb
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
+from pitch_detection import train_initial_weights
 from pitch_detection.configuration import Configuration
 from pitch_detection.pitch_autoencoder import PitchAutoencoder, entropy_term, laplacian_1d
 
@@ -48,6 +48,9 @@ def log_epoch_sample(model, spec_tensor):
 
 
 def train(cfg: Configuration):
+    if cfg.train_initial_weights:
+        train_initial_weights.train(cfg)
+        return
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {dev}")
 
@@ -56,9 +59,9 @@ def train(cfg: Configuration):
 
     vis_spec = data[0].to(dev)
 
-    model = PitchAutoencoder(cfg.base_ch, 32, cfg.kernel_len).to(dev)
-    if cfg.init_pitch_det_net is not None:
-        model.pitch_det_net.load_state_dict(torch.load(cfg.init_pitch_det_net, map_location=dev))
+    model = PitchAutoencoder(base_ch=cfg.base_ch, out_ch=cfg.out_ch, kernel_len=cfg.kernel_len).to(dev)
+    if cfg.initial_weights_file is not None:
+        model.pitch_det_net.load_state_dict(torch.load(cfg.initial_weights_file, map_location=dev))
 
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     sch = ExponentialLR(opt, gamma=cfg.lr_decay)
@@ -98,7 +101,5 @@ def train(cfg: Configuration):
         sch.step()
 
     if cfg.save_model:
-        path = pathlib.Path(cfg.ckpt_dir) / "f0ae.pt"
-        path.parent.mkdir(exist_ok=True)
-        torch.save(model.state_dict(), path)
-        print(f"Model saved → {path}")
+        torch.save(model.state_dict(), cfg.save_file)
+        print(f"Model saved → {cfg.save_file}")
