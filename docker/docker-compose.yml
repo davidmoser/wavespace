@@ -2,7 +2,7 @@ services:
   dependencies:
     build:
       context: ..
-      dockerfile: docker/Dockerfile
+      dockerfile: docker/dependencies/Dockerfile
     image: gebregl/wavespace-dependencies:v2
 
   spectrogram_converter:
