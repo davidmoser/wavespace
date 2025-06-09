@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from pitch_detection import train_initial_weights
 from pitch_detection.configuration import Configuration
-from pitch_detection.pitch_autoencoder import PitchAutoencoder, entropy_term, laplacian_1d
+from pitch_detection.pitch_autoencoder import PitchAutoencoder
 
 
 def sweep_run():
@@ -76,13 +76,13 @@ def train(cfg: Configuration):
         tot = 0.0
         cnt = 0
         for spec in loader:  # (B,F,T)
-            x = spec.to(dev).unsqueeze(1).float() # (B,1,F,T)
+            x = spec.to(dev).unsqueeze(1).float()  # (B,1,F,T)
             y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
             loss = (l1(y, x)
-                    + cfg.lambda1 * entropy_term(f)
-                    + cfg.lambda2 * f.mean()
-                    + cfg.lambda3 * laplacian_1d(f))
+                    # + cfg.lambda1 * entropy_term(f)
+                    + cfg.lambda2 * f.abs().mean())
+                    # + cfg.lambda3 * laplacian_1d(f))
 
             opt.zero_grad()
             loss.backward()
