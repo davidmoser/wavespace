@@ -76,8 +76,8 @@ def train(cfg: Configuration):
         tot = 0.0
         cnt = 0
         for spec in loader:  # (B,F,T)
-            x = spec.to(dev).unsqueeze(1).float()
-            y, f = model(x)  # synth output & f0 activities
+            x = spec.to(dev).unsqueeze(1).float() # (B,1,F,T)
+            y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
             loss = (l1(y, x)
                     + cfg.lambda1 * entropy_term(f)

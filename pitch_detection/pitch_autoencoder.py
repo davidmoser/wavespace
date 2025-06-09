@@ -1,4 +1,3 @@
-import torch.nn.functional as F
 from torch import nn
 
 from pitch_detection.pitch_det_net_v2 import PitchDetNet
@@ -14,7 +13,8 @@ class PitchAutoencoder(nn.Module):
         self.synth = SynthNet(channels=out_ch, kernel_len=kernel_len)
 
     def forward(self, x):
-        f = F.softplus(self.pitch_det_net(x))  # ensure a ≥ 0
+        # f = F.softplus(self.pitch_det_net(x))  # ensure a ≥ 0
+        f = self.pitch_det_net(x)
         s = self.synth(f)  # (B,1,F,T)
         return s, f
 
