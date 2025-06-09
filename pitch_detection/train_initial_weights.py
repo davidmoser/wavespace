@@ -57,10 +57,10 @@ def train(cfg: Configuration) -> None:
         total = 0.0
         count = 0
         for spec in loader:  # (B,F,T)
-            x = spec.to(dev).unsqueeze(1).float()
-            y = model(x)
-            # target = x.repeat(1, cfg.out_ch, 1, 1)
-            loss = l1(y[:, 0].unsqueeze(1), x)
+            x = spec.to(dev).unsqueeze(1).float() # (B, C=1, F, T)
+            y = model(x) # (B, C=32, F, T)
+            target = x.repeat(1, cfg.out_ch, 1, 1) # (B, C=32, F, T)
+            loss = l1(y, target)
             opt.zero_grad()
             loss.backward()
             opt.step()
