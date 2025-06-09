@@ -81,7 +81,7 @@ def train(cfg: Configuration):
 
             loss = (l1(y, x)
                     # + cfg.lambda1 * entropy_term(f)
-                    + cfg.lambda2 * f.abs().mean())
+                    + cfg.lambda2 * f.exp().mean())
                     # + cfg.lambda3 * laplacian_1d(f))
 
             opt.zero_grad()
