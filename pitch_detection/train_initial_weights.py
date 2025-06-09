@@ -81,4 +81,5 @@ def train(cfg: Configuration) -> None:
         print(f"Saving model to {cfg.save_file}")
         torch.save(model.state_dict(), cfg.save_file)
 
+    wandb.finish()
     print("Done")

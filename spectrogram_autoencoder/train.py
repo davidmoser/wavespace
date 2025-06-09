@@ -71,4 +71,5 @@ def train(cfg: Configuration) -> None:
         print(f"Saving model to {ckpt_path}")
         torch.save(model.state_dict(), ckpt_path)
 
+    wandb.finish()
     print("Done")

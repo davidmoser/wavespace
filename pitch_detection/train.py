@@ -106,3 +106,6 @@ def train(cfg: Configuration):
     if cfg.save_model:
         torch.save(model.state_dict(), cfg.save_file)
         print(f"Model saved → {cfg.save_file}")
+
+    wandb.finish()
+    print("Done")
