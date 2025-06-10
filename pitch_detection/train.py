@@ -25,7 +25,7 @@ def single_run(cfg: Configuration):
     train(cfg)
 
 
-def log_epoch_sample(model, spec_tensor):
+def log_epoch_sample(model, spec_tensor, step):
     """Log original spec, f0 map and reconstruction as one image."""
     model.eval()
     dev = next(model.parameters()).device
@@ -43,14 +43,18 @@ def log_epoch_sample(model, spec_tensor):
         a.set_title(title)
         a.axis("off")
 
-    wandb.log({"epoch_samples": [wandb.Image(fig)]})
+    wandb.log({"epoch_samples": [wandb.Image(fig)]}, step=step)
     plt.close(fig)
 
 
-def log_synth_kernels(model) -> None:
+def log_synth_kernels(model, step) -> None:
     """Log SynthNet kernels as a heatmap image."""
     with torch.no_grad():
-        kernels = model.synth.conv.weight.squeeze(1).detach().cpu().numpy()
+        kernels = model.synth.conv.weight.squeeze(1).detach().cpu()
+        # torch does cross attention, not convolution => last element of kernel corresponds to lowest frequency
+        kernels = torch.flip(kernels, dims=[-1])
+        kernels = kernels.numpy()
+
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.imshow(kernels.T, aspect="auto", origin="lower", cmap="coolwarm")
@@ -59,7 +63,7 @@ def log_synth_kernels(model) -> None:
     ax.set_ylabel("frequency")
     ax.axis("auto")
 
-    wandb.log({"kernels": [wandb.Image(fig)]})
+    wandb.log({"kernels": [wandb.Image(fig)]}, step=step)
     plt.close(fig)
 
 
@@ -84,8 +88,8 @@ def train(cfg: Configuration):
     l1 = torch.nn.L1Loss()
 
     if wandb.run:
-        log_epoch_sample(model, vis_spec)
-        log_synth_kernels(model)
+        log_epoch_sample(model, vis_spec, step=0)
+        log_synth_kernels(model, step=0)
 
     step = 0
     for epoch in range(1, cfg.epochs + 1):
@@ -99,7 +103,7 @@ def train(cfg: Configuration):
             loss = (l1(y, x)
                     # + cfg.lambda1 * entropy_term(f)
                     + cfg.lambda2 * f.abs().mean())
-                    # + cfg.lambda3 * laplacian_1d(f))
+            # + cfg.lambda3 * laplacian_1d(f))
 
             opt.zero_grad()
             loss.backward()
@@ -116,8 +120,8 @@ def train(cfg: Configuration):
         print(f"Epoch {epoch:3d}: L={tot / cnt:.4f}")
 
         if wandb.run:
-            log_epoch_sample(model, vis_spec)
-            log_synth_kernels(model)
+            log_epoch_sample(model, vis_spec, step)
+            log_synth_kernels(model, step)
 
         sch.step()
 

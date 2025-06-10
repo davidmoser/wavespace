@@ -22,7 +22,7 @@ class SynthNet(nn.Module):
         # initialize to identity
         with torch.no_grad():
             self.conv.weight.zero_()
-            self.conv.weight[:, :, 0] = 1.0
+            self.conv.weight[:, :, self.kernel_len - 1] = 1.0
 
     def forward(self, x):  # (B,32,F,T)
         B, C, F_, T = x.shape
@@ -33,7 +33,7 @@ class SynthNet(nn.Module):
 
         # (B, C, F, T) -> (B, T, C, F) -> (B*T, C, F)
         x_ft = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F_)
-        x_ft = F.pad(x_ft, (0, self.kernel_len - 1))
+        x_ft = F.pad(x_ft, (self.kernel_len - 1, 0))
         # y = F.conv1d(x_ft, kernel, groups=C)  # (B·T,32,F) # if we pin f0 to 1
         y = self.conv(x_ft)
         y = y.view(B, T, C, F_).permute(0, 2, 3, 1).contiguous()
