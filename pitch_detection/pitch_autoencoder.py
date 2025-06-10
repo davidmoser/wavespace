@@ -1,4 +1,5 @@
 from torch import nn
+import torch
 
 from pitch_detection.pitch_det_net_v2 import PitchDetNet
 from pitch_detection.synth_net import SynthNet
@@ -29,3 +30,19 @@ def entropy_term(a, eps=1e-12):
 def laplacian_1d(a):
     """|∇²_f a| for sharpness (B,C,F,T) → scalar."""
     return (a[:, :, 2:] - 2 * a[:, :, 1:-1] + a[:, :, :-2]).abs().mean()
+
+
+def distribution_std(a, eps: float = 1e-12):
+    """Standard deviation of |a| considered as a probability distribution.
+
+    The tensor is normalized along the frequency dimension so that values sum
+    to 1 for each (batch, channel, time) pair. The returned scalar is the mean
+    standard deviation over all distributions.
+    """
+    B, C, F, T = a.shape
+    weights = a.abs()
+    weights = weights / (weights.sum(dim=2, keepdim=True) + eps)
+    idx = torch.arange(F, device=a.device, dtype=a.dtype).view(1, 1, F, 1)
+    mean = (weights * idx).sum(dim=2, keepdim=True)
+    var = (weights * (idx - mean) ** 2).sum(dim=2)
+    return var.sqrt().mean()
