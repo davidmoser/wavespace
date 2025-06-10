@@ -102,7 +102,8 @@ def train(cfg: Configuration):
             # unchecked options: entropy_term(f), laplacian_1d(f)
             loss = (l1(y, x)
                     + cfg.lambda1 * model.synth.conv.weight.abs().mean()
-                    + cfg.lambda2 * f.abs().mean())
+                    + cfg.lambda2 * f.abs().mean()
+                    + cfg.lambda3 * f.std())
 
             opt.zero_grad()
             loss.backward()
