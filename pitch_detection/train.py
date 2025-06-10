@@ -43,7 +43,7 @@ def log_epoch_sample(model, spec_tensor, step):
         a.set_title(title)
         a.axis("off")
 
-    wandb.log({"epoch_samples": [wandb.Image(fig)]}, step=step)
+    wandb.log({"epoch_samples": [wandb.Image(fig)], "f0_min": f_np.min(), "f0_max": f_np.max()}, step=step)
     plt.close(fig)
 
 
@@ -55,7 +55,6 @@ def log_synth_kernels(model, step) -> None:
         kernels = torch.flip(kernels, dims=[-1])
         kernels = kernels.numpy()
 
-
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.imshow(kernels.T, aspect="auto", origin="lower", cmap="coolwarm")
     ax.set_title("SynthNet kernels")
@@ -63,7 +62,7 @@ def log_synth_kernels(model, step) -> None:
     ax.set_ylabel("frequency")
     ax.axis("auto")
 
-    wandb.log({"kernels": [wandb.Image(fig)]}, step=step)
+    wandb.log({"kernels": [wandb.Image(fig)], "kernels_min": kernels.min(), "kernels_max": kernels.max()}, step=step)
     plt.close(fig)
 
 
@@ -100,10 +99,10 @@ def train(cfg: Configuration):
             x = spec.to(dev).unsqueeze(1).float()  # (B,1,F,T)
             y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
+            # unchecked options: entropy_term(f), laplacian_1d(f)
             loss = (l1(y, x)
-                    # + cfg.lambda1 * entropy_term(f)
+                    + cfg.lambda1 * model.synth.conv.weight.abs().mean()
                     + cfg.lambda2 * f.abs().mean())
-            # + cfg.lambda3 * laplacian_1d(f))
 
             opt.zero_grad()
             loss.backward()
