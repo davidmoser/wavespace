@@ -47,6 +47,22 @@ def log_epoch_sample(model, spec_tensor):
     plt.close(fig)
 
 
+def log_synth_kernels(model) -> None:
+    """Log SynthNet kernels as a heatmap image."""
+    with torch.no_grad():
+        kernels = model.synth.conv.weight.squeeze(1).detach().cpu().numpy()
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.imshow(kernels.T, aspect="auto", origin="lower", cmap="coolwarm")
+    ax.set_title("SynthNet kernels")
+    ax.set_xlabel("channel")
+    ax.set_ylabel("frequency")
+    ax.axis("auto")
+
+    wandb.log({"kernels": [wandb.Image(fig)]})
+    plt.close(fig)
+
+
 def train(cfg: Configuration):
     if cfg.train_initial_weights:
         train_initial_weights.train(cfg)
@@ -69,6 +85,7 @@ def train(cfg: Configuration):
 
     if wandb.run:
         log_epoch_sample(model, vis_spec)
+        log_synth_kernels(model)
 
     step = 0
     for epoch in range(1, cfg.epochs + 1):
@@ -100,6 +117,7 @@ def train(cfg: Configuration):
 
         if wandb.run:
             log_epoch_sample(model, vis_spec)
+            log_synth_kernels(model)
 
         sch.step()
 
