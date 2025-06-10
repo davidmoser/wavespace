@@ -31,8 +31,6 @@ class SynthNet(nn.Module):
         # kernel = kernel.view(C, 1, -1)  # (C,1,L) # if we pin f0 to 1
         # kernel = self.theta
 
-        x = x.exp() # treat f0 as log  ps
-
         # (B, C, F, T) -> (B, T, C, F) -> (B*T, C, F)
         x_ft = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F_)
         x_ft = F.pad(x_ft, (0, self.kernel_len - 1))
