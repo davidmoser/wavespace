@@ -9,7 +9,7 @@ services:
     build:
       context: ..
       dockerfile: docker/spectrogram_converter/Dockerfile
-    image: gebregl/wavespace-spectrogram-converter:v3
+    image: gebregl/wavespace-spectrogram-converter:v4
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources
 

@@ -23,7 +23,7 @@ def convert(cfg: Configuration) -> None:
             sample_rate=cfg.sr, n_fft=4096, hop_length=512,
             n_mels=256, power=2.0).to(dev)
     elif cfg.type == "log":
-        spec_fft = torchaudio.transforms.Spectrogram(n_fft=4096, hop_length=512, power=2.0).to(dev)
+        spec_fft = torchaudio.transforms.Spectrogram(n_fft=4096, hop_length=512, power=cfg.power).to(dev)
         W = calculate_log_matrix(n_fft=4096, sr=cfg.sr, log_bins=256).to(dev)
 
         def spec(x):
@@ -38,7 +38,9 @@ def convert(cfg: Configuration) -> None:
     specs = []
     for wav in loader:  # (B,T)
         wav = wav.to(dev)
-        x = to_db(spec(wav))  # (B,F,T)
+        x = spec(wav)
+        if cfg.log_power:
+            x = to_db(x)
         specs.append(x.to(torch.float16))
 
     specs = torch.cat(specs, dim=0)
