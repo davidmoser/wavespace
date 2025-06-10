@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from pitch_detection import train_initial_weights
 from pitch_detection.configuration import Configuration
-from pitch_detection.pitch_autoencoder import PitchAutoencoder
+from pitch_detection.pitch_autoencoder import PitchAutoencoder, distribution_std
 
 
 def sweep_run():
@@ -103,7 +103,7 @@ def train(cfg: Configuration):
             loss = (l1(y, x)
                     + cfg.lambda1 * model.synth.conv.weight.abs().mean()
                     + cfg.lambda2 * f.abs().mean()
-                    + cfg.lambda3 * f.std())
+                    + cfg.lambda3 * distribution_std(f))
 
             opt.zero_grad()
             loss.backward()
