@@ -34,7 +34,7 @@ class SynthNet(nn.Module):
         x_ft = F.pad(x_ft, (self.kernel_len, 0))
 
         # use positive kernels via softplus transformation
-        weight = torch.concat([torch.ones(C, 1, 1), F.softplus(self.kernel)], dim=2)
+        weight = torch.concat([torch.ones(C, 1, 1), F.softplus(self.kernel)], dim=2).to(x.device)
         # flip so that index 0 corresponds to lowest frequency
         weight = torch.flip(weight, dims=[-1])
         y = F.conv1d(x_ft, weight, groups=C)
