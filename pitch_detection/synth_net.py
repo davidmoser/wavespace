@@ -19,10 +19,8 @@ class SynthNet(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        inv_softplus_one = torch.log(torch.expm1(torch.tensor(1.0)))
         with torch.no_grad():
             self.kernel.fill_(-10.0)
-            self.kernel[:, :, 0] = inv_softplus_one
 
     def forward(self, x):  # (B,32,F,T)
         B, C, F_, T = x.shape
@@ -33,10 +31,10 @@ class SynthNet(nn.Module):
 
         # (B, C, F, T) -> (B, T, C, F) -> (B*T, C, F)
         x_ft = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F_)
-        x_ft = F.pad(x_ft, (self.kernel_len - 1, 0))
+        x_ft = F.pad(x_ft, (self.kernel_len, 0))
 
         # use positive kernels via softplus transformation
-        weight = F.softplus(self.kernel)
+        weight = torch.concat([torch.ones(C, 1, 1), F.softplus(self.kernel)], dim=2)
         # flip so that index 0 corresponds to lowest frequency
         weight = torch.flip(weight, dims=[-1])
         y = F.conv1d(x_ft, weight, groups=C)
