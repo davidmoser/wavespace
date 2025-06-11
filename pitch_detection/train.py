@@ -3,6 +3,7 @@ from dataclasses import asdict
 
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.functional as F
 import wandb
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
@@ -50,10 +51,8 @@ def log_epoch_sample(model, spec_tensor, step):
 def log_synth_kernels(model, step) -> None:
     """Log SynthNet kernels as a heatmap image."""
     with torch.no_grad():
-        kernels = model.synth.conv.weight.squeeze(1).detach().cpu()
-        # torch does cross attention, not convolution => last element of kernel corresponds to lowest frequency
-        kernels = torch.flip(kernels, dims=[-1])
-        kernels = kernels.numpy()
+        kernels = F.softplus(model.synth.kernel)
+        kernels = kernels.squeeze(1).cpu().numpy()
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.imshow(kernels.T, aspect="auto", origin="lower", cmap="coolwarm")
@@ -101,7 +100,7 @@ def train(cfg: Configuration):
 
             # unchecked options: entropy_term(f), laplacian_1d(f)
             loss = (l1(y, x)
-                    + cfg.lambda1 * model.synth.conv.weight.abs().mean()
+                    + cfg.lambda1 * F.softplus(model.synth.kernel).mean()
                     + cfg.lambda2 * f.abs().mean()
                     + cfg.lambda3 * distribution_std(f))
 
