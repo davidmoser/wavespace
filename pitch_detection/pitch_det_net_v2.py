@@ -77,19 +77,20 @@ class PitchDetNet(nn.Module):
         self.up2 = Up(base_ch * 4, base_ch * 2)
         self.up3 = Up(base_ch * 2, base_ch)
         self.outc = OutConv(base_ch, out_ch)
+        self.out_act = nn.Softplus()
 
     def forward(self, x):
-        B, C, F, T = x.shape
+        B, C, F_, T = x.shape
         # reshape so time slices are batch instances
-        x = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F)
+        x = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F_)
 
         # optional: pad F so it is divisible by 64
-        pad = (-F) % 64
+        pad = (-F_) % 64
         if pad:
             x = F.pad(x, (0, pad))
-            F_out = F + pad
+            F_out = F_ + pad
         else:
-            F_out = F
+            F_out = F_
 
         x1 = self.inc(x)
         x2 = self.down1(x1)
@@ -99,9 +100,10 @@ class PitchDetNet(nn.Module):
         x = self.up2(x, x2)
         x = self.up3(x, x1)
         x = self.outc(x)
+        x = self.out_act(x)
 
         # remove padding and restore original shape
         if pad:
-            x = x[..., :F]
-        x = x.view(B, T, -1, F).permute(0, 2, 3, 1)  # (B,C_out,F,T)
+            x = x[..., :F_]
+        x = x.view(B, T, -1, F_).permute(0, 2, 3, 1)  # (B,C_out,F,T)
         return x

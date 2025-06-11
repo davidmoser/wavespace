@@ -14,15 +14,15 @@ class SynthNet(nn.Module):
         super().__init__()
         self.channels = channels
         self.kernel_len = kernel_len
-        # trainable parameters for overtones (L-1 values per channel)
-        # self.theta = nn.Parameter(torch.zeros(channels, kernel_len - 1)) # if we pin f0 to 1
-        self.conv = nn.Conv1d(in_channels=self.channels, out_channels=self.channels, groups=self.channels,
-                              kernel_size=self.kernel_len, bias=False)
+        # positive convolution kernels as raw parameters
+        self.kernel = nn.Parameter(torch.zeros(channels, 1, kernel_len))
+        self.reset_parameters()
 
-        # initialize to identity
+    def reset_parameters(self):
+        inv_softplus_one = torch.log(torch.expm1(torch.tensor(1.0)))
         with torch.no_grad():
-            self.conv.weight.zero_()
-            self.conv.weight[:, :, self.kernel_len - 1] = 1.0
+            self.kernel.fill_(-10.0)
+            self.kernel[:, :, 0] = inv_softplus_one
 
     def forward(self, x):  # (B,32,F,T)
         B, C, F_, T = x.shape
@@ -34,8 +34,12 @@ class SynthNet(nn.Module):
         # (B, C, F, T) -> (B, T, C, F) -> (B*T, C, F)
         x_ft = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F_)
         x_ft = F.pad(x_ft, (self.kernel_len - 1, 0))
-        # y = F.conv1d(x_ft, kernel, groups=C)  # (B·T,32,F) # if we pin f0 to 1
-        y = self.conv(x_ft)
+
+        # use positive kernels via softplus transformation
+        weight = F.softplus(self.kernel)
+        # flip so that index 0 corresponds to lowest frequency
+        weight = torch.flip(weight, dims=[-1])
+        y = F.conv1d(x_ft, weight, groups=C)
         y = y.view(B, T, C, F_).permute(0, 2, 3, 1).contiguous()
         y = y.sum(dim=1, keepdim=True)  # sum channels
         return y  # (B,1,F,T)
