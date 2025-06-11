@@ -41,5 +41,5 @@ class SynthNet(nn.Module):
         weight = torch.flip(weight, dims=[-1])
         y = F.conv1d(x_ft, weight, groups=C)
         y = y.view(B, T, C, F_).permute(0, 2, 3, 1).contiguous()
-        y = y.sum(dim=1, keepdim=True)  # sum channels
+        y = y.mean(dim=1, keepdim=True)  # sum channels
         return y  # (B,1,F,T)
