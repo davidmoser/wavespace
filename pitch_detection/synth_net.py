@@ -10,13 +10,14 @@ class SynthNet(nn.Module):
     Fundamental weight is frozen to 1; overtones are constrained to (0,1).
     """
 
-    def __init__(self, channels: int = 32, kernel_len: int = 128):
+    def __init__(self, channels: int = 32, kernel_len: int = 128, force_f0: bool = False):
         super().__init__()
         self.channels = channels
         self.kernel_len = kernel_len
         # positive convolution kernels as raw parameters
         self.kernel = nn.Parameter(torch.zeros(channels, 1, kernel_len))
         self.reset_parameters()
+        self.force_f0 = force_f0
 
     def reset_parameters(self):
         with torch.no_grad():
@@ -31,10 +32,14 @@ class SynthNet(nn.Module):
 
         # (B, C, F, T) -> (B, T, C, F) -> (B*T, C, F)
         x_ft = x.permute(0, 3, 1, 2).contiguous().view(B * T, C, F_)
-        x_ft = F.pad(x_ft, (self.kernel_len, 0))
+        eff_kernel_len = self.kernel_len + (1 if self.force_f0 else 0)
+        x_ft = F.pad(x_ft, (eff_kernel_len - 1, 0))
 
         # use positive kernels via softplus transformation
-        weight = torch.concat([torch.ones(C, 1, 1, device=x.device), F.softplus(self.kernel)], dim=2)
+        weight = F.softplus(self.kernel)
+        if self.force_f0:
+            weight = torch.concat([torch.ones(C, 1, 1, device=x.device), weight], dim=2)
+
         # flip so that index 0 corresponds to lowest frequency
         weight = torch.flip(weight, dims=[-1])
         y = F.conv1d(x_ft, weight, groups=C)

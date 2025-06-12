@@ -10,7 +10,8 @@ class Configuration:
     out_ch: int = 32
     lr: float = 1e-3
     lr_decay: float = 0.98
-    kernel_len: int = 129
+    kernel_len: int = 128
+    force_f0: bool = False
     lambda1: float = 1.0  # entropy
     lambda2: float = 1e-3  # L1 activity
     lambda3: float = 1e-4  # Laplacian

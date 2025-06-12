@@ -77,7 +77,8 @@ def train(cfg: Configuration):
 
     vis_spec = data[0].to(dev)
 
-    model = PitchAutoencoder(base_ch=cfg.base_ch, out_ch=cfg.out_ch, kernel_len=cfg.kernel_len).to(dev)
+    model = PitchAutoencoder(base_ch=cfg.base_ch, out_ch=cfg.out_ch, kernel_len=cfg.kernel_len,
+                             force_f0=cfg.force_f0).to(dev)
     if cfg.initial_weights_file is not None:
         model.pitch_det_net.load_state_dict(torch.load(cfg.initial_weights_file, map_location=dev))
 
