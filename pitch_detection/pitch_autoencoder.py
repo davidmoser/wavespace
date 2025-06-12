@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+from pitch_detection.configuration import Configuration
 from pitch_detection.pitch_det_net_v2 import PitchDetNet
 from pitch_detection.synth_net import SynthNet
 
@@ -8,10 +9,11 @@ from pitch_detection.synth_net import SynthNet
 class PitchAutoencoder(nn.Module):
     """U-Net → soft-plus → Synthesizer → channel-sum."""
 
-    def __init__(self, base_ch=16, out_ch=32, kernel_len=128, force_f0=False):
+    def __init__(self, cfg: Configuration):
         super().__init__()
-        self.pitch_det_net = PitchDetNet(base_ch=base_ch, out_ch=out_ch)
-        self.synth = SynthNet(channels=out_ch, kernel_len=kernel_len, force_f0=force_f0)
+        self.pitch_det_net = PitchDetNet(base_ch=cfg.base_ch, out_ch=cfg.out_ch)
+        self.synth = SynthNet(channels=cfg.out_ch, kernel_len=cfg.kernel_len, force_f0=cfg.force_f0,
+                              kernel_random=cfg.kernel_random)
 
     def forward(self, x):
         # f = F.softplus(self.pitch_det_net(x))  # ensure a ≥ 0

@@ -10,12 +10,15 @@ class SynthNet(nn.Module):
     Fundamental weight is frozen to 1; overtones are constrained to (0,1).
     """
 
-    def __init__(self, channels: int = 32, kernel_len: int = 128, force_f0: bool = False):
+    def __init__(self, channels: int = 32, kernel_len: int = 128, force_f0: bool = False, kernel_random: bool = False):
         super().__init__()
         self.channels = channels
         self.kernel_len = kernel_len
         # positive convolution kernels as raw parameters
-        self.kernel = nn.Parameter(torch.rand(channels, 1, kernel_len))
+        if kernel_random:
+            self.kernel = nn.Parameter(torch.rand(channels, 1, kernel_len))
+        else:
+            self.kernel = nn.Parameter(torch.zeros(channels, 1, kernel_len))
         self.force_f0 = force_f0
 
     def forward(self, x):  # (B,32,F,T)

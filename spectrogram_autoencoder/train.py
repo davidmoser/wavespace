@@ -2,6 +2,7 @@ import os
 import pathlib
 from dataclasses import asdict
 
+import matplotlib.pyplot as plt
 import torch
 import wandb
 from torch.optim.lr_scheduler import ExponentialLR
@@ -24,6 +25,27 @@ def single_run(cfg: Configuration):
     train(cfg)
 
 
+def log_epoch_sample(model, spec_tensor, step):
+    """Log original spec and reconstruction as one image."""
+    model.eval()
+    dev = next(model.parameters()).device
+    with torch.no_grad():
+        x = spec_tensor.unsqueeze(0).unsqueeze(0).float().to(dev)  # (1,1,F,T)
+        y = model(x)
+
+    x_np = x.squeeze().cpu().numpy()
+    y_np = y.squeeze().cpu().numpy()
+
+    fig, ax = plt.subplots(2, 1, figsize=(6, 7), constrained_layout=True)
+    for im, title, a in zip((x_np, y_np), ("original", "output"), ax):
+        a.imshow(im, aspect="auto", origin="lower", cmap="coolwarm")
+        a.set_title(title)
+        a.axis("off")
+
+    wandb.log({"epoch_samples": [wandb.Image(fig)]}, step=step)
+    plt.close(fig)
+
+
 def train(cfg: Configuration) -> None:
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {dev}")
@@ -32,6 +54,8 @@ def train(cfg: Configuration) -> None:
     loader = DataLoader(data, batch_size=cfg.batch,
                         shuffle=True, pin_memory=False, num_workers=0)
 
+    vis_spec = data[0].to(dev)
+
     model = get_model(cfg.version, cfg.base_ch).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     scheduler = ExponentialLR(opt, gamma=cfg.lr_decay)
@@ -39,6 +63,8 @@ def train(cfg: Configuration) -> None:
 
     num_samples = len(loader) * cfg.batch
     print(f"Training {cfg.version}: {cfg.epochs} epochs, {num_samples} samples")
+
+    log_epoch_sample(model, vis_spec, step=0)
 
     step = 0
     for epoch in range(1, cfg.epochs + 1):
@@ -59,6 +85,7 @@ def train(cfg: Configuration) -> None:
             step += 1
 
             wandb.log({"loss": loss.item(), "epoch": epoch}, step=step)
+            log_epoch_sample(model, vis_spec, step=step)
             print(".", end="")
 
         print(f"\nL={total / count:.4f}")
