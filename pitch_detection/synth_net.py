@@ -15,13 +15,8 @@ class SynthNet(nn.Module):
         self.channels = channels
         self.kernel_len = kernel_len
         # positive convolution kernels as raw parameters
-        self.kernel = nn.Parameter(torch.zeros(channels, 1, kernel_len))
-        self.reset_parameters()
+        self.kernel = nn.Parameter(torch.rand(channels, 1, kernel_len))
         self.force_f0 = force_f0
-
-    def reset_parameters(self):
-        with torch.no_grad():
-            self.kernel.fill_(-10.0)
 
     def forward(self, x):  # (B,32,F,T)
         B, C, F_, T = x.shape
