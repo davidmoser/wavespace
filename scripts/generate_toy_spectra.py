@@ -6,7 +6,7 @@ num_frames = 200    # time frames per sample
 num_bins = 256      # frequency bins
 f_delta = 30        # f1 - f0 distance
 magnitude = 100     # value at f0 and f1
-save_file = "toy_spectra.pt"
+save_file = "../resources/toy_spectra.pt"
 
 
 if __name__ == "__main__":
