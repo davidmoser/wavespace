@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 
 from pitch_detection import train_initial_weights
 from pitch_detection.configuration import Configuration
-from pitch_detection.pitch_autoencoder import PitchAutoencoder, distribution_std, entropy_term
+from pitch_detection.pitch_autoencoder import PitchAutoencoder, entropy_term
 
 
 def sweep_run():
@@ -100,10 +100,11 @@ def train(cfg: Configuration):
             y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
             # unchecked options: entropy_term(f), laplacian_1d(f)
-            loss = (l1(y, x)
-                    + cfg.lambda1 * entropy_term(f)
-                    + cfg.lambda2 * f.abs().mean()
-                    + cfg.lambda3 * distribution_std(f))
+            loss0 = l1(y, x)
+            loss1 = entropy_term(f)
+            # loss3 = f.abs().mean()
+            # loss4 = distribution_std(f)
+            loss = loss1 + cfg.lambda1 * loss1  # + cfg.lambda2 * loss2 + cfg.lambda3 * loss3
 
             opt.zero_grad()
             loss.backward()
@@ -114,7 +115,7 @@ def train(cfg: Configuration):
             step += 1
             print(".", end="")
             if wandb.run:
-                wandb.log({"loss": loss.item()}, step=step)
+                wandb.log({"loss": loss.item(), "loss0": loss0, "loss1": loss1}, step=step)
 
         print("\n")
         print(f"Epoch {epoch:3d}: L={tot / cnt:.4f}")
