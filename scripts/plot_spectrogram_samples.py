@@ -8,10 +8,10 @@ import torch
 data_file = "../resources/logspectrograms.pt"
 
 # Number of random samples to plot
-n = 10
+n = 100
 
 # Directory in which the output images will be saved
-output_folder = "spectrogram_frames"
+output_folder = "../resources/logspectrograms"
 
 
 def main() -> None:
