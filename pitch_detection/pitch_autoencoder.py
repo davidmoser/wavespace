@@ -24,7 +24,7 @@ def entropy_term(a, eps=1e-12):
     """Mean Shannon entropy over (channel,time)."""
     p = a / (a.sum(dim=2, keepdim=True) + eps)
     h = -(p * (p + eps).log()).sum(dim=2)  # (B,C,T)
-    return h.mean()
+    return (h * a.sum(dim=2)).mean()
 
 
 def laplacian_1d(a):
