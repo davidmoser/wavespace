@@ -20,7 +20,7 @@ class SynthNet(nn.Module):
 
         inv_kernel_value = np.log(np.exp(kernel_value) - 1)
         if kernel_random:
-            self.kernel = nn.Parameter(torch.rand(channels, 1, kernel_len) * inv_kernel_value)
+            self.kernel = nn.Parameter(inv_kernel_value - torch.rand(channels, 1, kernel_len))
         else:
             self.kernel = nn.Parameter(torch.ones(channels, 1, kernel_len) * inv_kernel_value)
         self.force_f0 = force_f0
