@@ -12,6 +12,7 @@ class Configuration:
     lr_decay: float = 0.98
     kernel_len: int = 128
     kernel_random: bool = False
+    kernel_value: float = 0.1
     force_f0: bool = False
     lambda1: float = 1.0  # entropy
     lambda2: float = 1e-3  # L1 activity
