@@ -104,7 +104,7 @@ def train(cfg: Configuration):
             loss1 = entropy_term(f)
             # loss3 = f.abs().mean()
             # loss4 = distribution_std(f)
-            loss = loss1 + cfg.lambda1 * loss1  # + cfg.lambda2 * loss2 + cfg.lambda3 * loss3
+            loss = loss0 + cfg.lambda1 * loss1  # + cfg.lambda2 * loss2 + cfg.lambda3 * loss3
 
             opt.zero_grad()
             loss.backward()
