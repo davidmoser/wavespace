@@ -2,7 +2,8 @@
   "input": {
     "batch": 128,
     "epochs": 10,
-    "kernel_len": 128,
+    "kernel_f_len": 128,
+    "kernel_t_len": 1,
     "lambda1": 1,
     "lambda2": 0.001,
     "lambda3": 0.0001,
