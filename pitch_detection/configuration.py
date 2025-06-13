@@ -10,7 +10,8 @@ class Configuration:
     out_ch: int = 32
     lr: float = 1e-3
     lr_decay: float = 0.98
-    kernel_len: int = 128
+    kernel_f_len: int = 128
+    kernel_t_len: int = 1
     kernel_random: bool = False
     kernel_value: float = 0.1
     force_f0: bool = False

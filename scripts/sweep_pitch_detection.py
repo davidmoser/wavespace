@@ -17,7 +17,8 @@ sweep_cfg = {
     "parameters": {
         "lr": {"value": 0.005},  # {"min": 1e-3, "max": 1e-1, "distribution": "log_uniform_values"},
         "lr_decay": {"values": [0.9]},
-        "kernel_len": {"values": [64, 128]},
+        "kernel_f_len": {"values": [64, 128]},
+        "kernel_t_len": {"value": 1},
         "lambda1": {"value": 0.0},  # entropy
         "lambda2": {"value": 0.0},  # L1 activity
         "lambda3": {"value": 0.0},  # Laplacian

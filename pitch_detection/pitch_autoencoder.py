@@ -7,9 +7,10 @@ from pitch_detection.pitch_det_net_v1 import PitchDetNet as PitchDetNetV1
 from pitch_detection.pitch_det_net_v2 import PitchDetNet as PitchDetNetV2
 from pitch_detection.pitch_det_net_v3 import PitchDetNet as PitchDetNetV3
 from pitch_detection.synth_net_v1 import SynthNet as SynthNetV1
+from pitch_detection.synth_net_v2 import SynthNet as SynthNetV2
 
 _PITCH_DET_REGISTRY = {1: PitchDetNetV1, 2: PitchDetNetV2, 3: PitchDetNetV3}
-_SYNTH_REGISTRY = {1: SynthNetV1}
+_SYNTH_REGISTRY = {1: SynthNetV1, 2: SynthNetV2}
 
 
 def get_pitch_det_model(version: str, cfg: Configuration) -> nn.Module:
@@ -27,9 +28,7 @@ def get_synth_model(version: str, cfg: Configuration) -> nn.Module:
         net_cls = _SYNTH_REGISTRY[v_num]
     except KeyError as e:
         raise ValueError(f"Unknown synth_net version {version}") from e
-    return net_cls(channels=cfg.out_ch, kernel_len=cfg.kernel_len,
-                   force_f0=cfg.force_f0, kernel_random=cfg.kernel_random,
-                   kernel_value=cfg.kernel_value)
+    return net_cls(cfg)
 
 
 class PitchAutoencoder(nn.Module):
