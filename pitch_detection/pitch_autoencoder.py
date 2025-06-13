@@ -5,9 +5,10 @@ from torch import nn
 from pitch_detection.configuration import Configuration
 from pitch_detection.pitch_det_net_v1 import PitchDetNet as PitchDetNetV1
 from pitch_detection.pitch_det_net_v2 import PitchDetNet as PitchDetNetV2
+from pitch_detection.pitch_det_net_v3 import PitchDetNet as PitchDetNetV3
 from pitch_detection.synth_net_v1 import SynthNet as SynthNetV1
 
-_PITCH_DET_REGISTRY = {1: PitchDetNetV1, 2: PitchDetNetV2}
+_PITCH_DET_REGISTRY = {1: PitchDetNetV1, 2: PitchDetNetV2, 3: PitchDetNetV3}
 _SYNTH_REGISTRY = {1: SynthNetV1}
 
 
