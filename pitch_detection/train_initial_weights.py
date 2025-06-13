@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
 from pitch_detection.configuration import Configuration
-from pitch_detection.pitch_det_net_v2 import PitchDetNet
+from pitch_detection.pitch_autoencoder import get_pitch_det_model
 
 
 def log_epoch_sample(model, spec_tensor):
@@ -39,7 +39,7 @@ def train(cfg: Configuration) -> None:
 
     vis_spec = data[0].to(dev)
 
-    model = PitchDetNet(base_ch=cfg.base_ch, out_ch=cfg.out_ch).to(dev)
+    model = get_pitch_det_model(version=cfg.pitch_det_version, cfg=cfg).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     scheduler = ExponentialLR(opt, gamma=cfg.lr_decay)
     l1 = torch.nn.L1Loss()
@@ -57,9 +57,9 @@ def train(cfg: Configuration) -> None:
         total = 0.0
         count = 0
         for spec in loader:  # (B,F,T)
-            x = spec.to(dev).unsqueeze(1).float() # (B, C=1, F, T)
-            y = model(x) # (B, C=32, F, T)
-            target = x.repeat(1, cfg.out_ch, 1, 1) # (B, C=32, F, T)
+            x = spec.to(dev).unsqueeze(1).float()  # (B, C=1, F, T)
+            y = model(x)  # (B, C=32, F, T)
+            target = x.repeat(1, cfg.out_ch, 1, 1)  # (B, C=32, F, T)
             loss = l1(y, target)
             opt.zero_grad()
             loss.backward()
@@ -78,8 +78,8 @@ def train(cfg: Configuration) -> None:
         scheduler.step()
 
     if cfg.save_model:
-        print(f"Saving model to {cfg.save_file}")
-        torch.save(model.state_dict(), cfg.save_file)
+        print(f"Saving model to {cfg.initial_weights_file}")
+        torch.save(model.state_dict(), cfg.initial_weights_file)
 
     wandb.finish()
     print("Done")

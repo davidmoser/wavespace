@@ -49,19 +49,35 @@ def log_epoch_sample(model, spec_tensor, step):
 
 
 def log_synth_kernels(model, step) -> None:
-    """Log SynthNet kernels as a heatmap image."""
+    """Log SynthNet kernels as a heat-map image.
+
+    Kernels have shape (C,T,F) when T==1 and (C,F,T) when T>1.
+    We keep frequency on the y-axis and flatten (channel,time) on x.
+    """
     with torch.no_grad():
-        kernels = F.softplus(model.synth.kernel)
-        kernels = kernels.squeeze(1).cpu().numpy()
+        ker = F.softplus(model.synth.kernel).cpu()          # (C,·,·)
+
+    if ker.shape[1] == 1:                                   # (C,1,F) → old case
+        img = ker.squeeze(1).numpy().T                      # (F,C)
+        xlabel = "channel"
+    else:                                                   # (C,F,T) → new case
+        C, F_, T = ker.shape
+        img = ker.permute(1, 0, 2).reshape(F_, C * T).numpy()  # (F, C·T)
+        xlabel = "channel · time"
 
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.imshow(kernels.T, aspect="auto", origin="lower", cmap="coolwarm")
+    ax.imshow(img, aspect="auto", origin="lower", cmap="coolwarm")
     ax.set_title("SynthNet kernels")
-    ax.set_xlabel("channel")
+    ax.set_xlabel(xlabel)
     ax.set_ylabel("frequency")
     ax.axis("auto")
 
-    wandb.log({"kernels": [wandb.Image(fig)], "kernels_min": kernels.min(), "kernels_max": kernels.max()}, step=step)
+    wandb.log(
+        {"kernels": [wandb.Image(fig)],
+         "kernels_min": img.min(),
+         "kernels_max": img.max()},
+        step=step,
+    )
     plt.close(fig)
 
 
