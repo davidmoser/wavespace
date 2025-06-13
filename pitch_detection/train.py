@@ -55,15 +55,17 @@ def log_synth_kernels(model, step) -> None:
     We keep frequency on the y-axis and flatten (channel,time) on x.
     """
     with torch.no_grad():
-        ker = F.softplus(model.synth.kernel).cpu()          # (C,·,·)
+        ker = F.softplus(model.synth.kernel).cpu().squeeze(1)          # (C,·,·)
 
-    if ker.shape[1] == 1:                                   # (C,1,F) → old case
-        img = ker.squeeze(1).numpy().T                      # (F,C)
+    if len(ker.shape) == 2:                                   # (C,F) → 1d case
+        img = ker.numpy().T                      # (F,C)
         xlabel = "channel"
-    else:                                                   # (C,F,T) → new case
+    elif len(ker.shape) == 3:                                   # (C,F,T) → 2d case
         C, F_, T = ker.shape
         img = ker.permute(1, 0, 2).reshape(F_, C * T).numpy()  # (F, C·T)
         xlabel = "channel · time"
+    else:
+        raise ValueError()
 
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.imshow(img, aspect="auto", origin="lower", cmap="coolwarm")

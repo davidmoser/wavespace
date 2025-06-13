@@ -31,16 +31,14 @@ class SynthNet(nn.Module):
     def forward(self, x):  # (B,C,F,T)
         B, C, F_, T = x.shape
         eff_kernel_f_len = self.kernel_f_len + (1 if self.force_f0 else 0)
-        pad_t_left = self.kernel_t_len // 2
-        pad_t_right = self.kernel_t_len - 1 - pad_t_left
-        x = F.pad(x, (pad_t_left, pad_t_right, eff_kernel_f_len - 1, 0))
+        x = F.pad(x, (self.kernel_t_len - 1, 0, eff_kernel_f_len - 1, 0))
 
         weight = F.softplus(self.kernel)
         if self.force_f0:
             ones = torch.ones(C, 1, 1, self.kernel_t_len, device=x.device)
             weight = torch.cat([ones, weight], dim=2)
 
-        weight = torch.flip(weight, dims=[-2])
+        weight = torch.flip(weight, dims=[-1, -2])
         y = F.conv2d(x, weight, groups=C)
         y = y.mean(dim=1, keepdim=True)
         return y  # (B,1,F,T)
