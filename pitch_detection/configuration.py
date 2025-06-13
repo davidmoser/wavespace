@@ -21,3 +21,5 @@ class Configuration:
     initial_weights_file: str = None
     save_model: bool = True
     save_file: str = None
+    pitch_det_version: str = "v2"
+    synth_net_version: str = "v1"
