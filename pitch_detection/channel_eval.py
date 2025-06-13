@@ -53,7 +53,7 @@ class ChannelEvalConfig:
     base_ch: int = 16
     out_ch: int = 32
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    wandb_project: str = "pitch-detection"
+    wandb_project: str = "pitch-channel-eval"
 
 
 def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
