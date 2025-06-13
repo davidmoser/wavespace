@@ -24,12 +24,14 @@ class LogSpectrogram:
     """Convert waveform tensors to log-frequency magnitude spectrograms."""
 
     def __init__(self, device: torch.device):
+        self.device = device
         self.spec = torchaudio.transforms.Spectrogram(
             n_fft=N_FFT, hop_length=HOP, power=1.0
         ).to(device)
         self.W = calculate_log_matrix(N_FFT, SR, N_BINS).to(device)
 
     def __call__(self, wav: torch.Tensor) -> torch.Tensor:
+        wav = wav.to(self.device)
         mag = self.spec(wav)
         return torch.matmul(self.W, mag[0]).unsqueeze(0)
 

@@ -3,6 +3,7 @@ WORKDIR /
 
 COPY /docker/pitch_channel_eval/rp_handler.py /rp_handler.py
 COPY /pitch_detection /pitch_detection/
+COPY /spectrogram_converter /spectrogram_converter
 
 COPY /docker/pitch_channel_eval/test_input.json /test_input.json
 
