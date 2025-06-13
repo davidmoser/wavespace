@@ -1,7 +1,8 @@
 {
   "input": {
-    "data_dir": "/resources/wav",
-    "labels_csv": "/resources/labels.csv",
-    "ckpt": "/resources/model.pt"
+    "data_dir": "/resources/Medley-solos-DB-sample",
+    "labels_csv": "/resources/Medley-solos-DB_metadata.csv",
+    "ckpt": "/resources/checkpoints/pitch_autoencoder.pt",
+    "base_ch": 4
   }
 }
