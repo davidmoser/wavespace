@@ -47,7 +47,7 @@ class SynthNet(nn.Module):
                     weights = torch.exp(-alpha * c * t)
                     weights = weights / weights.sum(dim=1, keepdim=True)
                 inv = torch.log(torch.exp(weights) - 1)
-                self.kernel[:, :, 0, :] = inv
+                self.kernel[:, 0, 0, :] = inv
         elif cfg.init_f0 not in ("none", "point", "exponential"):
             raise ValueError(f"Unknown init_f0 option: {cfg.init_f0}")
         self.force_f0 = cfg.force_f0
