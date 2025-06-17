@@ -48,19 +48,21 @@ def log_epoch_sample(model, spec_tensor, step):
     plt.close(fig)
 
 
-def log_synth_kernels(model, step) -> None:
+def log_synth_kernels(model, step, hide_f0) -> None:
     """Log SynthNet kernels as a heat-map image.
 
     Kernels have shape (C,T,F) when T==1 and (C,F,T) when T>1.
     We keep frequency on the y-axis and flatten (channel,time) on x.
     """
     with torch.no_grad():
-        ker = F.softplus(model.synth.kernel).cpu().squeeze(1)          # (C,·,·)
+        ker = F.softplus(model.synth.kernel).cpu().squeeze(1)  # (C,·,·)
+        if hide_f0:
+            ker = ker[:, 1:]
 
-    if len(ker.shape) == 2:                                   # (C,F) → 1d case
-        img = ker.numpy().T                      # (F,C)
+    if len(ker.shape) == 2:  # (C,F) → 1d case
+        img = ker.numpy().T  # (F,C)
         xlabel = "channel"
-    elif len(ker.shape) == 3:                                   # (C,F,T) → 2d case
+    elif len(ker.shape) == 3:  # (C,F,T) → 2d case
         C, F_, T = ker.shape
         img = ker.permute(1, 0, 2).reshape(F_, C * T).numpy()  # (F, C·T)
         xlabel = "channel · time"
@@ -105,7 +107,7 @@ def train(cfg: Configuration):
 
     if wandb.run:
         log_epoch_sample(model, vis_spec, step=0)
-        log_synth_kernels(model, step=0)
+        log_synth_kernels(model, step=0, hide_f0=cfg.init_f0)
 
     step = 0
     for epoch in range(1, cfg.epochs + 1):
@@ -116,12 +118,9 @@ def train(cfg: Configuration):
             x = spec.to(dev).unsqueeze(1).float()  # (B,1,F,T)
             y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
-            # unchecked options: entropy_term(f), laplacian_1d(f)
             loss0 = l1(y, x)
-            loss1 = entropy_term(f)
-            # loss3 = f.abs().mean()
-            # loss4 = distribution_std(f)
-            loss = loss0 + cfg.lambda1 * loss1  # + cfg.lambda2 * loss2 + cfg.lambda3 * loss3
+            loss1 = ((entropy_term(f) / entropy_term(x) - cfg.lambda2) ** 2).mean()
+            loss = loss0 + cfg.lambda1 * loss1
 
             opt.zero_grad()
             loss.backward()
@@ -139,7 +138,7 @@ def train(cfg: Configuration):
 
         if wandb.run:
             log_epoch_sample(model, vis_spec, step)
-            log_synth_kernels(model, step)
+            log_synth_kernels(model, step=step, hide_f0=cfg.init_f0)
 
         sch.step()
 
