@@ -46,11 +46,11 @@ class PitchAutoencoder(nn.Module):
         return s, f
 
 
-def entropy_term(a, eps=1e-12):
+def entropy_term(a, eps=1e-12): # (B,C,F,T)
     """Mean Shannon entropy over (channel,time)."""
     p = a / (a.sum(dim=2, keepdim=True) + eps)
     h = -(p * (p + eps).log()).sum(dim=2)  # (B,C,T)
-    return (h * a.sum(dim=2)).mean()
+    return h.mean()
 
 
 def laplacian_1d(a):
