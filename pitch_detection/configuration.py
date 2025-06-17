@@ -15,6 +15,7 @@ class Configuration:
     kernel_random: bool = False
     kernel_value: float = 0.1
     force_f0: bool = False
+    init_f0: bool = False
     lambda1: float = 1.0  # entropy
     lambda2: float = 1e-3  # L1 activity
     lambda3: float = 1e-4  # Laplacian

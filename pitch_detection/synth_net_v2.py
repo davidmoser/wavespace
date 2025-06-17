@@ -26,6 +26,12 @@ class SynthNet(nn.Module):
                 torch.ones(self.channels, 1, self.kernel_f_len, self.kernel_t_len)
                 * inv_kernel_value,
             )
+        if cfg.init_f0:
+            inv_one = np.log(np.exp(1) - 1)
+            if cfg.force_f0:
+                raise ValueError("Only init_f0 or force_f0 can be True, but not both")
+            with torch.no_grad():
+                self.kernel[:, :, 0, 0] = inv_one
         self.force_f0 = cfg.force_f0
 
     def forward(self, x):  # (B,C,F,T)
