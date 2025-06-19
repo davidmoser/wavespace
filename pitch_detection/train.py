@@ -101,7 +101,15 @@ def train(cfg: Configuration):
     if cfg.initial_weights_file is not None:
         model.pitch_det_net.load_state_dict(torch.load(cfg.initial_weights_file, map_location=dev))
 
-    opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
+    if cfg.pitch_det_lr is not None:
+        opt = torch.optim.AdamW(
+            [
+                {"params": model.synth.parameters(), "lr": cfg.lr},
+                {"params": model.pitch_det_net.parameters(), "lr": cfg.pitch_det_lr},
+            ]
+        )
+    else:
+        opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     sch = ExponentialLR(opt, gamma=cfg.lr_decay)
     l1 = torch.nn.L1Loss()
 
