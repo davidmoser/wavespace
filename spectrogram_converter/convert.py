@@ -9,7 +9,7 @@ from spectrogram_converter.audio_folder import AudioFolder
 from spectrogram_converter.configuration import Configuration
 
 
-def convert(cfg: Configuration) -> None:
+def convert(cfg: Configuration) -> torch.Tensor:
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {dev}")
 
@@ -45,10 +45,12 @@ def convert(cfg: Configuration) -> None:
 
     specs = torch.cat(specs, dim=0)
 
-    print(f"Saving specs to {cfg.spec_file}")
-    torch.save(specs, cfg.spec_file)
+    if cfg.spec_file:
+        print(f"Saving specs to {cfg.spec_file}")
+        torch.save(specs, cfg.spec_file)
 
     print("Done")
+    return specs
 
 
 def calculate_log_matrix(n_fft, sr, log_bins) -> torch.Tensor:
