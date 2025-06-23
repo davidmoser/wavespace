@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Configuration:
-    spec_file: str
+    spec_file: str | None = None
     epochs: int = 50
     batch: int = 32
     base_ch: int = 16

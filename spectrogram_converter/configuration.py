@@ -12,6 +12,6 @@ class Configuration:
     log_power: bool = False
     # data
     audio_dir: str = "../resources/Medley-solos-DB"
-    spec_file: str = "../resources/melspectrograms.pt"
+    spec_file: str | None = "../resources/melspectrograms.pt"
     # runtime
     num_workers: int = 4
