@@ -21,7 +21,6 @@ sweep_cfg = {
         "kernel_t_len": {"value": 1},
         "lambda1": {"value": 0.0},  # entropy
         "lambda2": {"value": 0.0},  # L1 activity
-        "lambda3": {"value": 0.0},  # Laplacian
         "batch": {"value": 128},
         "epochs": {"value": 1},
         "base_ch": {"values": [4, 16]},

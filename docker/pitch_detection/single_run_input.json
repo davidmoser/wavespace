@@ -6,12 +6,10 @@
     "kernel_t_len": 1,
     "lambda1": 1,
     "lambda2": 0.001,
-    "lambda3": 0.0001,
     "lr": 0.005,
     "lr_decay": 0.9,
     "base_ch": 16,
     "spec_file": "/runpod-volume/logspectrograms.pt",
-    "ckpt_dir": "/runpod-volume/checkpoints",
     "save_model": false
   }
 }
