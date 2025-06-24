@@ -1,4 +1,5 @@
 import re
+
 import torch
 from torch import nn
 
@@ -48,10 +49,13 @@ class PitchAutoencoder(nn.Module):
 
 def entropy_term(a: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
     """
-    a: (B, C, F, T)
+    - Add the channels
+    - Considers (B,T) slices, as distributions over frequency
+    - Calculates the entropy of these distributions, returning a (B,T) tensor
+    a: (B,C,F,T)
     out: (B)
     """
-    p = a / (a.sum(dim=(-2, -1), keepdim=True) + eps)
-    h = -(p * (p + eps).log()).sum(dim=(-2, -1))
-    return h.mean(dim=1)  # (B,)
-
+    p = a.sum(dim=1, keepdim=False) # (B,F,T)
+    p = p / (p.sum(dim=-2, keepdim=True) + eps)
+    h = -(p * (p + eps).log()).sum(dim=-2) # (B,T)
+    return h

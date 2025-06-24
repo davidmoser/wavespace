@@ -127,7 +127,7 @@ def train(cfg: Configuration):
             y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
             loss0 = l1(y, x)
-            loss1 = ((entropy_term(f) / entropy_term(x) - cfg.lambda2) ** 2).mean()
+            loss1 = ((entropy_term(f) / (entropy_term(x) + 1e-12) - cfg.lambda2) ** 2).mean()
             loss = loss0 + cfg.lambda1 * loss1
 
             opt.zero_grad()

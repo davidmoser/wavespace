@@ -13,19 +13,29 @@ sweep_cfg = {
     "program": "sweep_run.py",
     "method": "random",
     "metric": {"name": "loss", "goal": "minimize"},
-    "run_cap": 3,
+    "run_cap": 10,
     "parameters": {
-        "lr": {"value": 0.005},  # {"min": 1e-3, "max": 1e-1, "distribution": "log_uniform_values"},
-        "lr_decay": {"values": [0.9]},
-        "kernel_f_len": {"values": [64, 128]},
-        "kernel_t_len": {"value": 1},
-        "lambda1": {"value": 0.0},  # entropy
-        "lambda2": {"value": 0.0},  # L1 activity
+        "lr": {"value": 0.001},
+        "lr_decay": {"value": 1.0},
+        "pitch_det_lr": {"value": 0.02},
+        "lambda1": {"min": 0.01, "max":0.5, "distribution": "log_uniform_values"},  # entropy goal strength
+        "lambda2": {"value": 0.2},  # entropy goal
         "batch": {"value": 128},
-        "epochs": {"value": 1},
-        "base_ch": {"values": [4, 16]},
+        "epochs": {"value": 5},
+        "base_ch": {"value": 16},
+        "out_ch": {"value": 1},
+        "force_f0": {"value": True},
+        "init_f0": {"value": "point"},
+        "train_initial_weights": {"value": False},
+        "initial_weights_file": {"value": f"{volume}/checkpoints/pitch_det_net_initial_weights_v3_1channel.pt"},
+        "kernel_f_len": {"value": 128},
+        "kernel_t_len": {"value": 1},
+        "kernel_random": {"value": False},
+        "kernel_value": {"value": 1e-2},
         "spec_file": {"value": f"{volume}/logspectrograms.pt"},
         "save_model": {"value": False},
+        "pitch_det_version": {"value": "v3"},
+        "synth_net_version": {"value": "v1"},
     }
 }
 
