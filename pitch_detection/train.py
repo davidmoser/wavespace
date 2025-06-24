@@ -129,8 +129,8 @@ def train(cfg: Configuration):
 
             loss0 = l1(y, x)
             hx = entropy_term(x).mean()
-            hq = entropy_term(f).mean()
-            loss1 = hq - cfg.lambda2 * hx
+            hf = entropy_term(f).mean()
+            loss1 = hf - hx + cfg.lambda2
             loss = loss0 + lam * loss1
 
             opt.zero_grad()
