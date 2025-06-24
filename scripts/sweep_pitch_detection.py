@@ -18,8 +18,8 @@ sweep_cfg = {
         "lr": {"value": 0.001},
         "lr_decay": {"value": 1.0},
         "pitch_det_lr": {"value": 0.02},
-        "lambda1": {"min": 0.01, "max":0.5, "distribution": "log_uniform_values"},  # entropy goal strength
-        "lambda2": {"value": 0.2},  # entropy goal
+        "lambda1": {"value": 1e-3},
+        "lambda2": {"value": 0.6},
         "batch": {"value": 128},
         "epochs": {"value": 5},
         "base_ch": {"value": 16},

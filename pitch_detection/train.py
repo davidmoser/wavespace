@@ -118,6 +118,7 @@ def train(cfg: Configuration):
         log_synth_kernels(model, step=0, hide_f0=cfg.init_f0)
 
     step = 0
+    lam = cfg.lambda_init  # dual variable for entropy constraint
     for epoch in range(1, cfg.epochs + 1):
         model.train()
         tot = 0.0
@@ -127,19 +128,24 @@ def train(cfg: Configuration):
             y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
             loss0 = l1(y, x)
-            loss1 = ((entropy_term(f) / (entropy_term(x) + 1e-12) - cfg.lambda2) ** 2).mean()
-            loss = loss0 + cfg.lambda1 * loss1
+            hx = entropy_term(x).mean()
+            hq = entropy_term(f).mean()
+            loss1 = hq - cfg.lambda2 * hx
+            loss = loss0 + lam * loss1
 
             opt.zero_grad()
             loss.backward()
             opt.step()
+
+            # dual ascent step
+            lam = max(0.0, lam + cfg.lambda1 * loss1.item())
 
             tot += loss.item()
             cnt += 1
             step += 1
             print(".", end="")
             if wandb.run:
-                wandb.log({"loss": loss.item(), "loss0": loss0, "loss1": loss1}, step=step)
+                wandb.log({"loss": loss.item(), "loss0": loss0, "loss1": loss1, "lam": lam}, step=step)
 
         print("\n")
         print(f"Epoch {epoch:3d}: L={tot / cnt:.4f}")
