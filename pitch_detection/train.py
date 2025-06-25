@@ -111,7 +111,7 @@ def train(cfg: Configuration):
     else:
         opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
     sch = ExponentialLR(opt, gamma=cfg.lr_decay)
-    l1 = torch.nn.L1Loss()
+    l0 = torch.nn.MSELoss()
 
     if wandb.run:
         log_epoch_sample(model, vis_spec, step=0)
@@ -127,7 +127,7 @@ def train(cfg: Configuration):
             x = spec.to(dev).unsqueeze(1).float()  # (B,1,F,T)
             y, f = model(x)  # synth output & f0 activities, (B,1,F,T), (B,C,F,T)
 
-            loss0 = l1(y, x)
+            loss0 = l0(y, x)
             hx = entropy_term(x).mean()
             hf = entropy_term(f).mean()
             loss1 = hf - hx + cfg.lambda2
