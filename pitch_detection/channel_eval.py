@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 import os
 import pathlib
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
@@ -10,9 +10,9 @@ import torch
 import torchaudio
 import wandb
 
-from spectrogram_converter.convert import calculate_log_matrix
 from pitch_detection.configuration import Configuration
 from pitch_detection.pitch_autoencoder import PitchAutoencoder
+from spectrogram_converter.convert import calculate_log_matrix
 
 SR = 22_050
 N_FFT = 4096
@@ -49,11 +49,15 @@ def wav_to_spec(path: pathlib.Path, converter: LogSpectrogram) -> torch.Tensor:
 class ChannelEvalConfig:
     data_dir: str
     labels_csv: str
-    ckpt: str
-    base_ch: int = 16
-    out_ch: int = 32
+    model_cfg: Configuration
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     wandb_project: str = "pitch-channel-eval"
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "ChannelEvalConfig":
+        if "model_cfg" in data:
+            data["model_cfg"] = Configuration(**data["model_cfg"])
+        return cls(**data)
 
 
 def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
@@ -62,7 +66,7 @@ def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
     wandb.login(key=os.getenv("WANDB_API_KEY"), anonymous="allow")
     wandb.init(project=cfg.wandb_project, job_type="analysis", config={
         "data_dir": cfg.data_dir,
-        "ckpt": cfg.ckpt,
+        "ckpt": cfg.model_cfg.initial_weights_file,
     })
 
     dev = torch.device(cfg.device)
@@ -75,17 +79,16 @@ def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
     if not wav_files:
         raise RuntimeError("no wav files found")
 
-    model_cfg = Configuration(spec_file="none", base_ch=cfg.base_ch, out_ch=cfg.out_ch)
-    model = PitchAutoencoder(model_cfg).to(dev)
-    model.load_state_dict(torch.load(cfg.ckpt, map_location=dev))
+    model = PitchAutoencoder(cfg.model_cfg).to(dev)
+    model.load_state_dict(torch.load(cfg.model_cfg.initial_weights_file, map_location=dev))
     model.eval()
 
     converter = LogSpectrogram(dev)
 
     totals_by_instr: Dict[str, torch.Tensor] = defaultdict(
-        lambda: torch.zeros(cfg.out_ch, device=dev)
+        lambda: torch.zeros(cfg.model_cfg.out_ch, device=dev)
     )
-    totals_all = torch.zeros(cfg.out_ch, device=dev)
+    totals_all = torch.zeros(cfg.model_cfg.out_ch, device=dev)
 
     for wav_path in wav_files:
         uuid = wav_path.stem.split("_")[-1]
@@ -121,7 +124,7 @@ def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
     if len(instruments) == 1:
         axes = [axes]
     for ax, inst in zip(axes, instruments):
-        ax.bar(range(cfg.out_ch), percentages[inst])
+        ax.bar(range(cfg.model_cfg.out_ch), percentages[inst])
         ax.set_title(inst)
         ax.set_ylabel("activation %")
         ax.set_ylim(0, 1)

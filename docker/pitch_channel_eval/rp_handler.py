@@ -1,11 +1,11 @@
 import runpod
 
-from pitch_detection import ChannelEvalConfig, evaluate_channels
+from pitch_detection.channel_eval import ChannelEvalConfig, evaluate_channels
 
 
 def handler(event):
     print("Worker Start")
-    cfg = ChannelEvalConfig(**event["input"])
+    cfg = ChannelEvalConfig.from_dict(event["input"])
     evaluate_channels(cfg)
     return "Evaluation finished"
 

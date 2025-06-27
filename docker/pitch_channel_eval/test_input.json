@@ -2,7 +2,12 @@
   "input": {
     "data_dir": "/resources/Medley-solos-DB-sample",
     "labels_csv": "/resources/Medley-solos-DB_metadata.csv",
-    "ckpt": "/resources/checkpoints/pitch_autoencoder.pt",
-    "base_ch": 4
+    "model_cfg": {
+      "base_ch": 4,
+      "out_ch": 16,
+      "pitch_det_version": "v3",
+      "synth_net_version": "v1",
+      "initial_weights_file": "/resources/checkpoints/pitch_autoencoder.pt"
+    }
   }
 }
