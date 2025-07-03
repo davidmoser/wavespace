@@ -1,7 +1,7 @@
 import os
 import pathlib
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
@@ -64,10 +64,7 @@ def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
     """Analyse pitch-detector channel activations per instrument."""
 
     wandb.login(key=os.getenv("WANDB_API_KEY"), anonymous="allow")
-    wandb.init(project=cfg.wandb_project, job_type="analysis", config={
-        "data_dir": cfg.data_dir,
-        "ckpt": cfg.model_cfg.pitch_autoenc_file,
-    })
+    wandb.init(project=cfg.wandb_project, job_type="analysis", config=asdict(cfg))
 
     dev = torch.device(cfg.device)
 
