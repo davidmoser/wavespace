@@ -78,8 +78,8 @@ def train(cfg: Configuration) -> None:
         scheduler.step()
 
     if cfg.save_model:
-        print(f"Saving model to {cfg.initial_weights_file}")
-        torch.save(model.state_dict(), cfg.initial_weights_file)
+        print(f"Saving model to {cfg.pitch_det_file}")
+        torch.save(model.state_dict(), cfg.pitch_det_file)
 
     wandb.finish()
     print("Done")

@@ -20,8 +20,9 @@ class Configuration:
     lambda1: float = 1e-3  # dual variable learning rate
     lambda2: float = 0.6  # \u03b1 in constraint H(q) <= \u03b1 H(p)
     lambda_init: float = 0.0  # initial dual variable value
-    train_initial_weights: bool = True
-    initial_weights_file: str = None
+    train_pitch_det_only: bool = True
+    pitch_det_file: str = None
+    pitch_autoenc_file: str = None
     save_model: bool = True
     save_file: str = None
     pitch_det_version: str = "v2"

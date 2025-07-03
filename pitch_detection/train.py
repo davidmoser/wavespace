@@ -8,7 +8,7 @@ import wandb
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
-from pitch_detection import train_initial_weights
+from pitch_detection import train_pitch_net
 from pitch_detection.configuration import Configuration
 from pitch_detection.pitch_autoencoder import PitchAutoencoder, entropy_term
 
@@ -86,8 +86,8 @@ def log_synth_kernels(model, step, hide_f0) -> None:
 
 
 def train(cfg: Configuration):
-    if cfg.train_initial_weights:
-        train_initial_weights.train(cfg)
+    if cfg.train_pitch_det_only:
+        train_pitch_net.train(cfg)
         return
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {dev}")
@@ -98,8 +98,11 @@ def train(cfg: Configuration):
     vis_spec = data[0].to(dev)
 
     model = PitchAutoencoder(cfg=cfg).to(dev)
-    if cfg.initial_weights_file is not None:
-        model.pitch_det_net.load_state_dict(torch.load(cfg.initial_weights_file, map_location=dev))
+    # load either just the pitch_det_net or the whole pitch_autoencoder (pitch_det + synth_net)
+    if cfg.pitch_det_file is not None:
+        model.pitch_det_net.load_state_dict(torch.load(cfg.pitch_det_file, map_location=dev))
+    if cfg.pitch_autoenc_file is not None:
+        model.load_state_dict(torch.load(cfg.pitch_autoenc_file, map_location=dev))
 
     if cfg.pitch_det_lr is not None:
         opt = torch.optim.AdamW(

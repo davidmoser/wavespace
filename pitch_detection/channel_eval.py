@@ -66,7 +66,7 @@ def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
     wandb.login(key=os.getenv("WANDB_API_KEY"), anonymous="allow")
     wandb.init(project=cfg.wandb_project, job_type="analysis", config={
         "data_dir": cfg.data_dir,
-        "ckpt": cfg.model_cfg.initial_weights_file,
+        "ckpt": cfg.model_cfg.pitch_autoenc_file,
     })
 
     dev = torch.device(cfg.device)
@@ -80,7 +80,7 @@ def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
         raise RuntimeError("no wav files found")
 
     model = PitchAutoencoder(cfg.model_cfg).to(dev)
-    model.load_state_dict(torch.load(cfg.model_cfg.initial_weights_file, map_location=dev))
+    model.load_state_dict(torch.load(cfg.model_cfg.pitch_autoenc_file, map_location=dev))
     model.eval()
 
     converter = LogSpectrogram(dev)
