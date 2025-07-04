@@ -26,23 +26,27 @@ def single_run(cfg: Configuration):
     train(cfg)
 
 
-def log_epoch_sample(model, spec_tensor, step):
-    """Log original spec, f0 map and reconstruction as one image."""
+def log_epoch_sample(model, sample_specs, step):
+    """Log original specs, f0 maps and reconstructions as one image."""
+    if not len(sample_specs) == 4:
+        raise ValueError("Expecting 4 samples")
+
     model.eval()
     dev = next(model.parameters()).device
     with torch.no_grad():
-        x = spec_tensor.unsqueeze(0).unsqueeze(0).float().to(dev)  # (1,1,F,T)
+        x = sample_specs.unsqueeze(1).float().to(dev)  # (4,1,F,T)
         y, f = model(x)
 
     x_np = x.squeeze().cpu().numpy()
     f_np = f.sum(dim=1).squeeze().cpu().numpy()
     y_np = y.squeeze().cpu().numpy()
 
-    fig, ax = plt.subplots(3, 1, figsize=(6, 7), constrained_layout=True)
-    for im, title, a in zip((x_np, f_np, y_np), ("original", "f0", "output"), ax):
-        a.imshow(im, aspect="auto", origin="lower", cmap="coolwarm")
-        a.set_title(title)
-        a.axis("off")
+    fig, ax = plt.subplots(3, 4, figsize=(6, 7), constrained_layout=True)
+    for i in range(4):
+        for im, title, a in zip((x_np[i], f_np[i], y_np[i]), ("original", "f0", "output"), ax[:, i]):
+            a.imshow(im, aspect="auto", origin="lower", cmap="coolwarm")
+            a.set_title(title)
+            a.axis("off")
 
     wandb.log({"epoch_samples": [wandb.Image(fig)], "f0_min": f_np.min(), "f0_max": f_np.max()}, step=step)
     plt.close(fig)
@@ -92,10 +96,10 @@ def train(cfg: Configuration):
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {dev}")
 
-    data = torch.load(cfg.spec_file, mmap=True, map_location=dev)
+    data = torch.load(cfg.spec_file, mmap=True, map_location=dev)  # (n,
     loader = DataLoader(data, batch_size=cfg.batch, shuffle=True, num_workers=0)
 
-    vis_spec = data[0].to(dev)
+    sample_specs = data[0:4].to(dev)
 
     model = PitchAutoencoder(cfg=cfg).to(dev)
     # load either just the pitch_det_net or the whole pitch_autoencoder (pitch_det + synth_net)
@@ -117,7 +121,7 @@ def train(cfg: Configuration):
     l0 = torch.nn.MSELoss()
 
     if wandb.run:
-        log_epoch_sample(model, vis_spec, step=0)
+        log_epoch_sample(model, sample_specs, step=0)
         log_synth_kernels(model, step=0, hide_f0=cfg.init_f0)
 
     step = 0
@@ -154,7 +158,7 @@ def train(cfg: Configuration):
         print(f"Epoch {epoch:3d}: L={tot / cnt:.4f}")
 
         if wandb.run:
-            log_epoch_sample(model, vis_spec, step)
+            log_epoch_sample(model, sample_specs, step)
             log_synth_kernels(model, step=step, hide_f0=cfg.init_f0)
 
         sch.step()
