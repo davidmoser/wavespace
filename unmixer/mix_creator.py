@@ -13,7 +13,7 @@ __all__ = [
 ]
 
 
-def create_room_configs() -> List[dict]:
+def create_room_configs() -> list[dict]:
     return [
         {"name": "small_absorptive", "dimensions": (5.0, 4.0, 3.0), "absorption": 0.6, "max_order": 3},
         {"name": "small_reflective", "dimensions": (5.0, 4.0, 3.0), "absorption": 0.1, "max_order": 3},
@@ -23,14 +23,14 @@ def create_room_configs() -> List[dict]:
     ]
 
 
-def _choose_dataset(file_lists: Dict[str, List[Path]]) -> str:
+def _choose_dataset(file_lists: dict[str, list[Path]]) -> str:
     names = list(file_lists.keys())
     counts = [len(file_lists[n]) for n in names]
     return random.choices(names, weights=counts, k=1)[0]
 
 
 def generate_mixes(
-    dataset_roots: Dict[str, Path],
+    dataset_roots: dict[str, Path],
     output_root: Path,
     *,
     num_mixes: int,
