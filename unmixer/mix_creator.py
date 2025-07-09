@@ -40,8 +40,10 @@ def generate_mixes(
     random_seed: int | None = None,
 ) -> None:
     import importlib
-
-    spatialscaper = importlib.import_module("spatialscaper")
+    try:
+        spatialscaper = importlib.import_module("spatialscaper")
+    except ModuleNotFoundError:  # fallback to bundled implementation
+        from . import room_scaper as spatialscaper
 
     if random_seed is not None:
         random.seed(random_seed)
