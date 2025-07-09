@@ -54,13 +54,13 @@ class ChannelEvalConfig:
     wandb_project: str = "pitch-channel-eval"
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "ChannelEvalConfig":
+    def from_dict(cls, data: dict) -> "ChannelEvalConfig":
         if "model_cfg" in data:
             data["model_cfg"] = Configuration(**data["model_cfg"])
         return cls(**data)
 
 
-def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
+def evaluate_channels(cfg: ChannelEvalConfig) -> dict[str, list[float]]:
     """Analyse pitch-detector channel activations per instrument."""
 
     wandb.login(key=os.getenv("WANDB_API_KEY"), anonymous="allow")
@@ -82,7 +82,7 @@ def evaluate_channels(cfg: ChannelEvalConfig) -> Dict[str, List[float]]:
 
     converter = LogSpectrogram(dev)
 
-    totals_by_instr: Dict[str, torch.Tensor] = defaultdict(
+    totals_by_instr: dict[str, torch.Tensor] = defaultdict(
         lambda: torch.zeros(cfg.model_cfg.out_ch, device=dev)
     )
     totals_all = torch.zeros(cfg.model_cfg.out_ch, device=dev)
