@@ -47,34 +47,14 @@ def dac_roundtrip(
     win_duration: float = 1.0,
     normalize_db: Optional[float] = -16.0,
 ) -> Path:
-    """Encode and decode an audio file with the Descript Audio Codec (DAC).
-
-    Args:
-        input_path: Path to the source audio file to round-trip.
-        model_type: Which pretrained DAC model to use ("16khz", "24khz", or "44khz").
-        model_bitrate: Target bitrate for DAC ("8kbps" or "16kbps").
-        model_tag: Specific model version tag to download. Defaults to "latest".
-        output_format: Audio format for the reconstructed file ("wav" or "mp3").
-        device: Optional device override. Defaults to CUDA when available.
-        win_duration: Window duration (seconds) for chunked compression.
-        normalize_db: Target loudness for normalization before encoding.
-
-    Returns:
-        The path where the reconstructed audio was written.
-    """
-
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
     if model_type not in MODEL_TYPES:
-        raise ValueError(
-            f"model_type must be one of {MODEL_TYPES}; received {model_type!r}"
-        )
+        raise ValueError(f"model_type must be one of {MODEL_TYPES}; received {model_type!r}")
 
     if model_bitrate not in MODEL_BITRATES:
-        raise ValueError(
-            f"model_bitrate must be one of {MODEL_BITRATES}; received {model_bitrate!r}"
-        )
+        raise ValueError(f"model_bitrate must be one of {MODEL_BITRATES}; received {model_bitrate!r}")
 
     if model_bitrate == "16kbps" and model_type != "44khz":
         raise ValueError("The 16kbps model is only available for the 44khz variant.")
