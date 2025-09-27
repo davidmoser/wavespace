@@ -1,0 +1,16 @@
+EnCodec:
+- convolve the 24kHz signal, 320 samples down to a 128 dim latent vector
+- one frame/token ends up being 320 / 24kHz = 1/75 s = 13.3 ms
+- residual vector quantization to figure out code books
+- there are 32 codebooks with 1024 vectors each
+- for example: 6 kbps uses 8 codebooks, 8cb * 10b/cb * 24kHz / 320 = 6 kb/s
+- decoding: for each codebook, look up the vector, sum the vectors, then deconvolve
+
+DAC:
+- Canonical: convolve the 44.1 kHz signal, 512 samples down to a 1024 dim latent vector
+- Other sample rates: 16, 24 kHz, other hop size: 320 (to compare with EnCodec)
+- one frame/token ends up being 512 / 44 100 = 1/86 s = 11.6 ms
+- residual vector quantization to figure out code books
+- there are M codebooks (8–14), each with K entries (K=1024). Per frame you emit M discrete indices, one per codebook
+- for example: 8 codebooks at above specs, 8cb * 10b/cb * 44.1kHz / 512 = 6.9 kb/s; 14 codebooks => 12.1 kb/s
+- decoding: for each codebook, look up the vector, sum (or sum with per-stage scalars) the vectors, deconvolve
