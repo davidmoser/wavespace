@@ -7,8 +7,8 @@ file. The output filename contains the chosen quality level.
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
+from typing import Optional
 
 import torch
 import torchaudio
@@ -17,47 +17,6 @@ from encodec.utils import convert_audio
 
 
 QUALITY_LEVELS = [1.5, 3.0, 6.0, 12.0]
-
-
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Encode and decode an audio file with the Encodec codec",
-    )
-    parser.add_argument(
-        "input",
-        type=Path,
-        help="Path to the input audio file.",
-    )
-    parser.add_argument(
-        "--quality",
-        type=float,
-        default=6.0,
-        choices=QUALITY_LEVELS,
-        help=(
-            "Target bandwidth in kbps used for Encodec's encode/decode cycle. "
-            "This value controls the quality of the reconstruction and will "
-            "also be embedded in the output filename."
-        ),
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda" if torch.cuda.is_available() else "cpu",
-        help="Computation device (defaults to CUDA when available).",
-    )
-    parser.add_argument(
-        "--model",
-        choices=["24khz", "48khz"],
-        default="24khz",
-        help="Which pretrained Encodec model to use.",
-    )
-    parser.add_argument(
-        "--output-format",
-        choices=["wav", "mp3"],
-        default="wav",
-        help="Audio format for the decoded output file.",
-    )
-    return parser.parse_args()
 
 
 def _load_model(model_name: str, device: str) -> EncodecModel:
@@ -71,16 +30,44 @@ def _load_model(model_name: str, device: str) -> EncodecModel:
     return model
 
 
-def main() -> None:
-    args = _parse_args()
-    input_path: Path = args.input
+def encodec_roundtrip(
+    input_path: Path,
+    *,
+    quality: float = 6.0,
+    model_name: str = "24khz",
+    output_format: str = "wav",
+    device: Optional[str] = None,
+) -> Path:
+    """Encode and decode an audio file with Encodec.
+
+    Args:
+        input_path: Path to the source audio file to round-trip.
+        quality: Target bandwidth (kbps) for Encodec. Must be in QUALITY_LEVELS.
+        model_name: Which pretrained Encodec model to use ("24khz" or "48khz").
+        output_format: Audio format for the reconstructed file ("wav" or "mp3").
+        device: Optional device override. Defaults to CUDA when available.
+
+    Returns:
+        The path where the reconstructed audio was written.
+    """
+
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
+    if quality not in QUALITY_LEVELS:
+        raise ValueError(
+            f"quality must be one of {QUALITY_LEVELS}; received {quality!r}"
+        )
+
+    if output_format not in {"wav", "mp3"}:
+        raise ValueError("output_format must be either 'wav' or 'mp3'")
+
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
     waveform, sample_rate = torchaudio.load(str(input_path))
 
-    device = args.device
-    model = _load_model(args.model, device)
+    model = _load_model(model_name, device)
     model.eval()
 
     # Prepare audio for the model
@@ -93,7 +80,7 @@ def main() -> None:
     ).unsqueeze(0)
 
     with torch.inference_mode():
-        encoded = model.encode(audio, target_bandwidth=args.quality)
+        encoded = model.encode(audio, target_bandwidth=quality)
         decoded = model.decode(encoded)
 
     # Convert back to the original sample rate and channel count
@@ -104,18 +91,37 @@ def main() -> None:
         waveform.shape[0],
     )
 
-    suffix = f"_encodec_{args.quality}"
+    suffix = f"_encodec_{quality}"
     output_path = input_path.with_name(
-        f"{input_path.stem}{suffix}.{args.output_format}"
+        f"{input_path.stem}{suffix}.{output_format}"
     )
 
-    if args.output_format == "wav":
+    if output_format == "wav":
         torchaudio.save(str(output_path), decoded, sample_rate)
     else:
         torchaudio.save(str(output_path), decoded, sample_rate, format="mp3")
 
-    print(f"Saved decoded audio to {output_path}")
+    return output_path
 
 
 if __name__ == "__main__":
-    main()
+    INPUT_FILE = Path("path/to/audio.wav")
+    ROUNDTRIP_QUALITY = 6.0
+    MODEL_NAME = "24khz"
+    OUTPUT_FORMAT = "wav"
+    DEVICE_OVERRIDE: Optional[str] = None
+
+    if INPUT_FILE.exists():
+        result_path = encodec_roundtrip(
+            INPUT_FILE,
+            quality=ROUNDTRIP_QUALITY,
+            model_name=MODEL_NAME,
+            output_format=OUTPUT_FORMAT,
+            device=DEVICE_OVERRIDE,
+        )
+        print(f"Saved decoded audio to {result_path}")
+    else:
+        print(
+            "Update INPUT_FILE to point to an existing audio file before running the "
+            "roundtrip."
+        )
