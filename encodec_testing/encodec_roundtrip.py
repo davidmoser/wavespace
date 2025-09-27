@@ -103,14 +103,14 @@ def encodec_roundtrip(
 
 
 if __name__ == "__main__":
-    input_file = Path("../resources/Gentle on My Mind - Cotton Pickin Kids/Gentle on My Mind - Cotton Pickin Kids.mp3")
+    input_file = Path("../resources/sine/sine_1000Hz_1s_16kHz.wav")
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     result_path = encodec_roundtrip(
         input_file,
         bandwidth=24,
-        model_name="48khz",
+        model_name="16khz",
         output_format="wav",
         device=None,
     )

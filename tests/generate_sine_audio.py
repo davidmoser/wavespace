@@ -10,11 +10,11 @@ import numpy as np
 
 
 def create_sine_audio(
-    frequency: float = 440.0,
+    frequency: float = 14000.0,
     duration: float = 1.0,
     volume: float = 1.0,
-    sample_rate: int = 16_000,
-    output_path: Union[str, Path] = "sine.wav",
+    sample_rate: int = 48_000,
+    output_folder: Union[str, Path] = "../resources/sine/",
 ) -> Path:
     if not 0 <= volume <= 1:
         raise ValueError("volume must be between 0 and 1 inclusive")
@@ -25,8 +25,11 @@ def create_sine_audio(
     if frequency <= 0:
         raise ValueError("frequency must be positive")
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_folder = Path(output_folder)
+    output_folder.parent.mkdir(parents=True, exist_ok=True)
+    sr_khz = sample_rate / 1000
+    filename = f"sine_{frequency:g}Hz_{duration:g}s_{sr_khz:g}kHz.wav"
+    output_path = output_folder / filename
 
     total_samples = int(round(duration * sample_rate))
     times = np.linspace(0, duration, num=total_samples, endpoint=False)
