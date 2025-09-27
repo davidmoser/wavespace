@@ -78,7 +78,9 @@ def encodec_roundtrip(
     ).unsqueeze(0)
 
     with torch.inference_mode():
+        print("Encoding")
         encoded = model.encode(audio)
+        print("Decoding")
         decoded = model.decode(encoded)
 
     # Convert back to the original sample rate and channel count
@@ -109,7 +111,7 @@ if __name__ == "__main__":
 
     result_path = encodec_roundtrip(
         input_file,
-        bandwidth=24,
+        bandwidth=6,
         model_name="16khz",
         output_format="wav",
         device=None,

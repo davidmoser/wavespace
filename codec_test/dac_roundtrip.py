@@ -44,8 +44,7 @@ def dac_roundtrip(
     model_tag: str = "latest",
     output_format: str = "wav",
     device: Optional[str] = None,
-    win_duration: float = 1.0,
-    normalize_db: Optional[float] = -16.0,
+    win_duration: float = 60.0,
 ) -> Path:
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
@@ -66,7 +65,6 @@ def dac_roundtrip(
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
     signal = AudioSignal(str(input_path))
-    signal = signal.to(device)
 
     model = _load_model(
         model_type=model_type,
@@ -75,12 +73,29 @@ def dac_roundtrip(
         device=device,
     )
 
-    dac_file = model.compress(
-        signal,
-        win_duration=win_duration,
-        normalize_db=normalize_db,
-    )
-    reconstructed = model.decompress(dac_file)
+    # match the model SR
+    if signal.sample_rate != model.sample_rate:
+        print("Converting framerate")
+        signal = signal.resample(model.sample_rate)
+
+    # Workaround for DAC issue #80: ensure win_duration < signal duration
+    sig_dur = signal.signal_duration
+    safe_win = win_duration
+    if safe_win >= sig_dur:
+        safe_win = max(sig_dur - (1.0 / signal.sample_rate), 1.0 / signal.sample_rate)
+
+    signal = signal.to(model.device)
+
+    print("Compressing")
+
+    with torch.inference_mode():
+        dac_file = model.compress(
+            signal,
+            win_duration=safe_win,
+        )
+        print("Decompressing")
+        reconstructed = model.decompress(dac_file).cpu()
+
     reconstructed = reconstructed.cpu()
 
     waveform = reconstructed.audio_data.squeeze(0)
@@ -91,6 +106,7 @@ def dac_roundtrip(
         f"{input_path.stem}{suffix}.{output_format}"
     )
 
+    print("Saving")
     if output_format == "wav":
         torchaudio.save(str(output_path), waveform, sample_rate)
     else:
@@ -106,8 +122,8 @@ if __name__ == "__main__":
 
     result_path = dac_roundtrip(
         input_file,
-        model_type="16khz",
-        model_bitrate="8kbps",
+        model_type="44khz", # 16, 24, 44
+        model_bitrate="8kbps", # 8, 16
         output_format="wav",
         device=None,
     )
