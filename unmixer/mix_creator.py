@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import random
 from pathlib import Path
-from typing import List, Dict
 
 import numpy as np
 
@@ -11,6 +10,8 @@ __all__ = [
     "create_room_configs",
     "generate_mixes",
 ]
+
+from unmixer.dataset_setup import ensure_dataset
 
 
 def create_room_configs() -> list[dict]:
@@ -30,15 +31,19 @@ def _choose_dataset(file_lists: dict[str, list[Path]]) -> str:
 
 
 def generate_mixes(
-    dataset_roots: dict[str, Path],
-    output_root: Path,
-    *,
-    num_mixes: int,
-    max_events: int,
-    mix_length_s: float,
-    target_sr: int,
-    random_seed: int | None = None,
+        datasets_path: Path,
+        datasets,
+        output_root: Path,
+        *,
+        num_mixes: int,
+        max_events: int,
+        mix_length_s: float,
+        target_sr: int,
+        random_seed: int | None = None,
 ) -> None:
+    for name in datasets:
+        ensure_dataset(name, datasets_path)
+
     import importlib
     try:
         spatialscaper = importlib.import_module("spatialscaper")
@@ -50,7 +55,7 @@ def generate_mixes(
         np.random.seed(random_seed)
 
     rooms = create_room_configs()
-    file_lists = {name: sorted(Path(p).rglob("*.wav")) for name, p in dataset_roots.items()}
+    file_lists = {name: sorted((datasets_path / name).rglob("*.wav")) for name in datasets}
     output_root.mkdir(parents=True, exist_ok=True)
 
     for i in range(num_mixes):
@@ -79,4 +84,3 @@ def generate_mixes(
         metadata = {"num_events": k, "room": room_cfg, "events": events_info}
         with open(out_meta, "w") as f:
             json.dump(metadata, f, indent=2)
-

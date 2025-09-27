@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import tarfile
+import zipfile
 from pathlib import Path
 
 __all__ = ["ensure_dataset", "DatasetDownloadError"]
-
 
 
 class DatasetDownloadError(Exception):
@@ -15,6 +15,7 @@ def _download_file(url: str, dest: Path) -> None:
     import requests
     from tqdm import tqdm
     dest.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading {url} to {dest}")
     try:
         with requests.get(url, stream=True) as r:
             r.raise_for_status()
@@ -36,55 +37,47 @@ def _extract_tar(tar_path: Path, dest: Path) -> None:
         raise DatasetDownloadError(f"Failed extracting {tar_path}") from e
 
 
+def _extract_zip(zip_path: Path, dest: Path) -> None:
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(dest)
+    except Exception as e:
+        raise DatasetDownloadError(f"Failed extracting {zip_path}") from e
+
+
 def _download_nsynth(dataset_dir: Path) -> None:
-    url = "https://storage.googleapis.com/magentadata/datasets/nsynth/nsynth-full.tar.gz"
-    tar_path = dataset_dir / "nsynth-full.tar.gz"
-    _download_file(url, tar_path)
-    raw_dir = dataset_dir / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    _extract_tar(tar_path, raw_dir)
-    tar_path.unlink(missing_ok=True)
+    for subset in ["train", "valid", "test"]:
+        url = f"http://download.magenta.tensorflow.org/datasets/nsynth/nsynth-{subset}.jsonwav.tar.gz"
+        tar_path = dataset_dir / f"nsynth-{subset}.jsonwav.tar.gz"
+        _download_file(url, tar_path)
+        _extract_tar(tar_path, dataset_dir)
+        tar_path.unlink(missing_ok=True)
+        orig_path = dataset_dir / f"nsynth-{subset}"
+        simple_path = dataset_dir / subset
+        orig_path.rename(simple_path)
 
 
 def _download_idmt(dataset_dir: Path) -> None:
-    url = "https://zenodo.org/record/7544164/files/IDMT-SMT-Drums.tar.gz"
-    tar_path = dataset_dir / "idmt-smt.tar.gz"
+    url = "https://zenodo.org/records/7544164/files/IDMT-SMT-DRUMS-V2.zip"
+    tar_path = dataset_dir / "idmt-smt.zip"
     _download_file(url, tar_path)
-    raw_dir = dataset_dir / "raw"
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    _extract_tar(tar_path, raw_dir)
+    _extract_zip(tar_path, dataset_dir)
     tar_path.unlink(missing_ok=True)
 
 
-def _convert_audio(raw_dir: Path, audio_dir: Path, target_sr: int, mono: bool) -> None:
-    import librosa
-    import soundfile as sf
-
-    for wav in raw_dir.rglob("*.wav"):
-        y, _ = librosa.load(wav, sr=target_sr, mono=mono)
-        out_path = audio_dir / wav.relative_to(raw_dir)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(out_path, y, target_sr)
-
-
-def ensure_dataset(name: str, root: Path, target_sr: int, mono: bool) -> Path:
+def ensure_dataset(name: str, root: Path) -> Path:
     if name not in {"nsynth", "idmt_smt"}:
         raise ValueError("name must be 'nsynth' or 'idmt_smt'")
 
     dataset_dir = root / name
-    audio_dir = dataset_dir / f"audio_sr{target_sr}"
 
-    if audio_dir.exists() and any(audio_dir.rglob("*.wav")):
-        return audio_dir
+    if dataset_dir.exists() and any(dataset_dir.rglob("*.wav")):
+        return dataset_dir
 
-    raw_dir = dataset_dir / "raw"
-    if not raw_dir.exists() or not any(raw_dir.rglob("*.wav")):
-        dataset_dir.mkdir(parents=True, exist_ok=True)
-        if name == "nsynth":
-            _download_nsynth(dataset_dir)
-        else:
-            _download_idmt(dataset_dir)
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    if name == "nsynth":
+        _download_nsynth(dataset_dir)
+    else:
+        _download_idmt(dataset_dir)
 
-    audio_dir.mkdir(parents=True, exist_ok=True)
-    _convert_audio(raw_dir, audio_dir, target_sr, mono)
-    return audio_dir
+    return dataset_dir
