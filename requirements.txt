@@ -1,4 +1,6 @@
 encodec
+descript-audio-codec
+descript-audiotools
 runpod>=1.7.9
 matplotlib~=3.10.3
 torch>=2.7.0
