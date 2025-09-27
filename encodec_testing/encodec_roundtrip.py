@@ -15,34 +15,32 @@ import torchaudio
 from encodec import EncodecModel
 from encodec.utils import convert_audio
 
+QUALITY_LEVELS = [1.5, 3.0, 6.0, 12.0, 24.0]
 
-QUALITY_LEVELS = [1.5, 3.0, 6.0, 12.0]
 
-
-def _load_model(model_name: str, device: str) -> EncodecModel:
+def _load_model(model_name: str, device: str, bandwidth: float) -> EncodecModel:
     if model_name == "48khz":
         model = EncodecModel.encodec_model_48khz()
     else:
         model = EncodecModel.encodec_model_24khz()
-    model.set_target_bandwidths(QUALITY_LEVELS)
     model.to(device)
-    model.set_device(device)
+    model.set_target_bandwidth(bandwidth)
     return model
 
 
 def encodec_roundtrip(
-    input_path: Path,
-    *,
-    quality: float = 6.0,
-    model_name: str = "24khz",
-    output_format: str = "wav",
-    device: Optional[str] = None,
+        input_path: Path,
+        *,
+        bandwidth: float = 6.0,
+        model_name: str = "24khz",
+        output_format: str = "wav",
+        device: Optional[str] = None,
 ) -> Path:
     """Encode and decode an audio file with Encodec.
 
     Args:
         input_path: Path to the source audio file to round-trip.
-        quality: Target bandwidth (kbps) for Encodec. Must be in QUALITY_LEVELS.
+        bandwidth: Target bandwidth (kbps) for Encodec. Must be in QUALITY_LEVELS.
         model_name: Which pretrained Encodec model to use ("24khz" or "48khz").
         output_format: Audio format for the reconstructed file ("wav" or "mp3").
         device: Optional device override. Defaults to CUDA when available.
@@ -54,9 +52,9 @@ def encodec_roundtrip(
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
-    if quality not in QUALITY_LEVELS:
+    if bandwidth not in QUALITY_LEVELS:
         raise ValueError(
-            f"quality must be one of {QUALITY_LEVELS}; received {quality!r}"
+            f"quality must be one of {QUALITY_LEVELS}; received {bandwidth!r}"
         )
 
     if output_format not in {"wav", "mp3"}:
@@ -67,7 +65,7 @@ def encodec_roundtrip(
 
     waveform, sample_rate = torchaudio.load(str(input_path))
 
-    model = _load_model(model_name, device)
+    model = _load_model(model_name, device, bandwidth)
     model.eval()
 
     # Prepare audio for the model
@@ -80,7 +78,7 @@ def encodec_roundtrip(
     ).unsqueeze(0)
 
     with torch.inference_mode():
-        encoded = model.encode(audio, target_bandwidth=quality)
+        encoded = model.encode(audio)
         decoded = model.decode(encoded)
 
     # Convert back to the original sample rate and channel count
@@ -91,7 +89,7 @@ def encodec_roundtrip(
         waveform.shape[0],
     )
 
-    suffix = f"_encodec_{quality}"
+    suffix = f"_encodec_{model_name}_{bandwidth}kbps"
     output_path = input_path.with_name(
         f"{input_path.stem}{suffix}.{output_format}"
     )
@@ -105,23 +103,15 @@ def encodec_roundtrip(
 
 
 if __name__ == "__main__":
-    INPUT_FILE = Path("path/to/audio.wav")
-    ROUNDTRIP_QUALITY = 6.0
-    MODEL_NAME = "24khz"
-    OUTPUT_FORMAT = "wav"
-    DEVICE_OVERRIDE: Optional[str] = None
+    input_file = Path("../resources/Gentle on My Mind - Cotton Pickin Kids/Gentle on My Mind - Cotton Pickin Kids.mp3")
+    if not input_file.exists():
+        raise FileNotFoundError(f"Input file not found: {input_file}")
 
-    if INPUT_FILE.exists():
-        result_path = encodec_roundtrip(
-            INPUT_FILE,
-            quality=ROUNDTRIP_QUALITY,
-            model_name=MODEL_NAME,
-            output_format=OUTPUT_FORMAT,
-            device=DEVICE_OVERRIDE,
-        )
-        print(f"Saved decoded audio to {result_path}")
-    else:
-        print(
-            "Update INPUT_FILE to point to an existing audio file before running the "
-            "roundtrip."
-        )
+    result_path = encodec_roundtrip(
+        input_file,
+        bandwidth=24,
+        model_name="48khz",
+        output_format="wav",
+        device=None,
+    )
+    print(f"Saved decoded audio to {result_path}")
