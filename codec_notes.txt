@@ -1,7 +1,7 @@
 EnCodec:
 - convolve the 24kHz signal, 320 samples down to a 128 dim latent vector
 - one frame/token ends up being 320 / 24kHz = 1/75 s = 13.3 ms
-- residual vector quantization to figure out code books
+- residual vector quantization RVQ to figure out code books
 - there are 32 codebooks with 1024 vectors each
 - for example: 6 kbps uses 8 codebooks, 8cb * 10b/cb * 24kHz / 320 = 6 kb/s
 - decoding: for each codebook, look up the vector, sum the vectors, then deconvolve

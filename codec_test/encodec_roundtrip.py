@@ -21,8 +21,10 @@ QUALITY_LEVELS = [1.5, 3.0, 6.0, 12.0, 24.0]
 def _load_model(model_name: str, device: str, bandwidth: float) -> EncodecModel:
     if model_name == "48khz":
         model = EncodecModel.encodec_model_48khz()
-    else:
+    elif model_name == "24khz":
         model = EncodecModel.encodec_model_24khz()
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
     model.to(device)
     model.set_target_bandwidth(bandwidth)
     return model
@@ -105,14 +107,14 @@ def encodec_roundtrip(
 
 
 if __name__ == "__main__":
-    input_file = Path("../resources/sine/sine_1000Hz_1s_16kHz.wav")
+    input_file = Path("../resources/Gentle on My Mind - Cotton Pickin Kids/Gentle on My Mind - Cotton Pickin Kids.mp3")
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     result_path = encodec_roundtrip(
         input_file,
-        bandwidth=6,
-        model_name="16khz",
+        bandwidth=12,
+        model_name="48khz",
         output_format="wav",
         device=None,
     )
