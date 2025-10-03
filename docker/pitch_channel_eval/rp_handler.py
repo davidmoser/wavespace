@@ -1,6 +1,6 @@
 import runpod
 
-from pitch_detection.channel_eval import ChannelEvalConfig, evaluate_channels
+from pitch_detection_auto.channel_eval import ChannelEvalConfig, evaluate_channels
 
 
 def handler(event):

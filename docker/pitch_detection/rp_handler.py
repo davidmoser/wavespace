@@ -3,8 +3,8 @@ from typing import Any
 
 import runpod
 
-import pitch_detection.train as train
-from pitch_detection.configuration import Configuration
+import pitch_detection_auto.train as train
+from pitch_detection_auto.configuration import Configuration
 
 
 def handler(event: dict[str, Any]) -> str:

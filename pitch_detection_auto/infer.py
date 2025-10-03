@@ -3,8 +3,8 @@ import pathlib
 import matplotlib.pyplot as plt
 import torch
 
-from pitch_detection.configuration import Configuration as PDConfig
-from pitch_detection.pitch_autoencoder import PitchAutoencoder
+from pitch_detection_auto.configuration import Configuration as PDConfig
+from pitch_detection_auto.pitch_autoencoder import PitchAutoencoder
 from spectrogram_converter.configuration import Configuration as ConvertConfig
 from spectrogram_converter.convert import convert
 

@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from pitch_detection.configuration import Configuration
+from pitch_detection_auto.configuration import Configuration
 
 
 class SynthNet(nn.Module):

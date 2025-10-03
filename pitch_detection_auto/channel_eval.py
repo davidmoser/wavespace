@@ -10,8 +10,8 @@ import torch
 import torchaudio
 import wandb
 
-from pitch_detection.configuration import Configuration
-from pitch_detection.pitch_autoencoder import PitchAutoencoder
+from pitch_detection_auto.configuration import Configuration
+from pitch_detection_auto.pitch_autoencoder import PitchAutoencoder
 from spectrogram_converter.convert import calculate_log_matrix
 
 SR = 22_050

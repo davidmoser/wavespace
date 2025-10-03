@@ -4,8 +4,8 @@ import wandb
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
-from pitch_detection.configuration import Configuration
-from pitch_detection.pitch_autoencoder import get_pitch_det_model
+from pitch_detection_auto.configuration import Configuration
+from pitch_detection_auto.pitch_autoencoder import get_pitch_det_model
 
 
 def log_epoch_sample(model, spec_tensor):
