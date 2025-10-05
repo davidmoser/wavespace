@@ -22,9 +22,6 @@ from .evaluate import (
 )
 from .make_loaders import make_loaders, pad_or_crop
 
-__all__ = ["train", "evaluate", "soft_targets", "pad_or_crop", "make_loaders"]
-
-
 def _resolve_device(config: Config) -> torch.device:
     if config.device is not None:
         return torch.device(config.device)

@@ -9,15 +9,6 @@ from torch.utils.data import DataLoader
 
 from .configuration import Config
 
-__all__ = [
-    "evaluate",
-    "soft_targets",
-    "_freq_to_space",
-    "_build_space_and_delta",
-    "_nearest_center_index",
-    "_compute_batch_metrics",
-]
-
 
 def _freq_to_space(freq_hz: Tensor, use_log: bool) -> Tensor:
     if use_log:

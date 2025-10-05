@@ -159,10 +159,3 @@ def make_loaders(
         )
 
     return _resolve_loader(train_data, shuffle=True), _resolve_loader(val_data, shuffle=False)
-
-
-__all__ = [
-    "pad_or_crop",
-    "make_loaders",
-]
-
