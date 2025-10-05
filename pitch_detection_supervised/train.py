@@ -20,7 +20,7 @@ from .evaluate import (
     _build_space_and_delta,
     _compute_batch_metrics,
 )
-from .make_loaders import make_loaders, pad_or_crop
+
 
 def _resolve_device(config: Config) -> torch.device:
     if config.device is not None:
@@ -29,13 +29,11 @@ def _resolve_device(config: Config) -> torch.device:
 
 
 def train(
-    model: Module,
-    train_dataloader: DataLoader,
-    val_dataloader: Optional[DataLoader],
-    config: Config,
+        model: Module,
+        train_loader: DataLoader,
+        val_loader: Optional[DataLoader],
+        config: Config,
 ) -> Dict[str, Optional[float]]:
-    config.validate()
-
     random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
@@ -45,25 +43,6 @@ def train(
 
     device = _resolve_device(config)
     model.to(device)
-
-    if hasattr(model, "seq_len"):
-        if model.seq_len != config.seq_len:
-            raise ValueError("Model seq_len does not match config.seq_len")
-    if hasattr(model, "latent_dim"):
-        if model.latent_dim != config.latent_dim:
-            raise ValueError("Model latent_dim does not match config.latent_dim")
-    if hasattr(model, "n_classes"):
-        if model.n_classes != config.n_classes:
-            raise ValueError("Model n_classes does not match config.n_classes")
-
-    if not isinstance(train_dataloader, DataLoader):
-        raise TypeError("train_dataloader must be an instance of torch.utils.data.DataLoader")
-
-    if val_dataloader is not None and not isinstance(val_dataloader, DataLoader):
-        raise TypeError("val_dataloader must be a DataLoader or None")
-
-    train_loader = train_dataloader
-    val_loader = val_dataloader
 
     total_train_steps = len(train_loader) * config.epochs
     if total_train_steps == 0:
@@ -86,9 +65,6 @@ def train(
 
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
-    use_amp = device.type == "cuda" and config.use_amp
-    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
-
     global_step = 0
     best_val_loss = float("inf")
     best_val_top1 = 0.0
@@ -103,28 +79,19 @@ def train(
             freq = batch["freq_hz"].to(device, non_blocking=True)
             mask = batch["valid_mask"].to(device, non_blocking=True).float()
 
-            with torch.cuda.amp.autocast(enabled=use_amp):
-                logits = model(x)
-                target = soft_targets(freq, centers_hz, config.sigma_bins, config.log_bins)
-                log_q = F.log_softmax(logits, dim=-1)
-                frame_loss = -(target * log_q).sum(dim=-1)
-                mask_sum = mask.sum()
-                if mask_sum <= 0:
-                    continue
-                loss = (frame_loss * mask).sum() / mask_sum
+            logits = model(x)
+            target = soft_targets(freq, centers_hz, config.sigma_bins, config.log_bins)
+            log_q = F.log_softmax(logits, dim=-1)
+            frame_loss = -(target * log_q).sum(dim=-1)
+            mask_sum = mask.sum()
+            if mask_sum <= 0:
+                continue
+            loss = (frame_loss * mask).sum() / mask_sum
 
-            if use_amp:
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                if config.max_grad_norm is not None and config.max_grad_norm > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                if config.max_grad_norm is not None and config.max_grad_norm > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
-                optimizer.step()
+            loss.backward()
+            if config.max_grad_norm is not None and config.max_grad_norm > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
+            optimizer.step()
 
             scheduler.step()
 
@@ -194,4 +161,3 @@ def train(
         "best_val_top1": best_val_top1 if best_val_loss != float("inf") else None,
         "save_path": save_path,
     }
-

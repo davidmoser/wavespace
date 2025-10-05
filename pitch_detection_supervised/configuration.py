@@ -28,7 +28,6 @@ class Config:
     # device and reproducibility
     device: Optional[str] = None  # None means "cuda if available else cpu"
     seed: int = 1337
-    use_amp: bool = True
 
     # labels / bins
     n_classes: int = 128
@@ -42,57 +41,6 @@ class Config:
     log_interval: int = 50
     eval_interval: int = 500
     within_bins: int = 1
-
-    def validate(self) -> None:
-        if self.batch_size <= 0:
-            raise ValueError("batch_size must be positive")
-        if self.num_workers < 0:
-            raise ValueError("num_workers must be non-negative")
-        if self.seq_len <= 0:
-            raise ValueError("seq_len must be positive")
-        if self.latent_dim <= 0:
-            raise ValueError("latent_dim must be positive")
-        if self.epochs <= 0:
-            raise ValueError("epochs must be positive")
-        if self.lr <= 0:
-            raise ValueError("lr must be positive")
-        if self.weight_decay < 0:
-            raise ValueError("weight_decay must be non-negative")
-        if self.max_grad_norm <= 0:
-            raise ValueError("max_grad_norm must be positive")
-        if self.warmup_steps < 0:
-            raise ValueError("warmup_steps must be non-negative")
-        if self.total_steps_override is not None and self.total_steps_override <= 0:
-            raise ValueError("total_steps_override must be positive when provided")
-        if self.device is not None and not isinstance(self.device, str):
-            raise TypeError("device must be a string or None")
-        if self.seed < 0:
-            raise ValueError("seed must be non-negative")
-        if self.n_classes <= 0:
-            raise ValueError("n_classes must be positive")
-        if self.fmin_hz <= 0:
-            raise ValueError("fmin_hz must be positive")
-        if self.fmax_hz <= self.fmin_hz:
-            raise ValueError("fmax_hz must be greater than fmin_hz")
-        if self.sigma_bins <= 0:
-            raise ValueError("sigma_bins must be positive")
-        if self.log_interval <= 0:
-            raise ValueError("log_interval must be positive")
-        if self.eval_interval <= 0:
-            raise ValueError("eval_interval must be positive")
-        if self.within_bins <= 0:
-            raise ValueError("within_bins must be positive")
-        if self.centers_explicit is not None:
-            if not isinstance(self.centers_explicit, (list, tuple)):
-                raise TypeError("centers_explicit must be a sequence of floats")
-            centers = list(self.centers_explicit)
-            if len(centers) != self.n_classes:
-                raise ValueError("centers_explicit must match n_classes in length")
-            if any(c <= 0 for c in centers):
-                raise ValueError("centers_explicit values must be positive")
-            if any(b <= a for a, b in zip(centers, centers[1:])):
-                raise ValueError("centers_explicit must be strictly increasing")
-            self.centers_explicit = centers
 
     def centers_hz(self) -> List[float]:
         if self.centers_explicit is not None:
@@ -121,5 +69,4 @@ class Config:
         valid_keys = {f.name for f in fields(Config)}
         kwargs = {key: value for key, value in d.items() if key in valid_keys}
         config = Config(**kwargs)
-        config.validate()
         return config

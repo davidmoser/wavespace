@@ -8,6 +8,39 @@ from torch.utils.data import DataLoader
 from .configuration import Config
 
 
+def make_loaders(
+        train_data: Optional[Iterable[Any]],
+        val_data: Optional[Iterable[Any]],
+        config: Config,
+) -> Tuple[Optional[DataLoader], Optional[DataLoader]]:
+    collate_fn = _build_collate_fn(config)
+
+    def _resolve_loader(data: Optional[Iterable[Any]], shuffle: bool) -> Optional[DataLoader]:
+        if data is None:
+            return None
+        if isinstance(data, DataLoader):
+            return data
+
+        if config.device is None:
+            pin_memory = torch.cuda.is_available()
+        else:
+            try:
+                device_type = torch.device(config.device).type
+                pin_memory = device_type == "cuda"
+            except (RuntimeError, ValueError):
+                pin_memory = False
+
+        return DataLoader(
+            data,
+            batch_size=config.batch_size,
+            shuffle=shuffle,
+            num_workers=config.num_workers,
+            pin_memory=pin_memory,
+            collate_fn=collate_fn,
+        )
+
+    return _resolve_loader(train_data, shuffle=True), _resolve_loader(val_data, shuffle=False)
+
 def pad_or_crop(x: Tensor, target_T: int) -> Tensor:
     """Center-crop or pad the time dimension of *x* to *target_T* steps."""
 
@@ -126,36 +159,3 @@ def _build_collate_fn(config: Config) -> Callable[[Sequence[Any]], Dict[str, Ten
 
     return collate
 
-
-def make_loaders(
-    train_data: Optional[Iterable[Any]],
-    val_data: Optional[Iterable[Any]],
-    config: Config,
-) -> Tuple[Optional[DataLoader], Optional[DataLoader]]:
-    collate_fn = _build_collate_fn(config)
-
-    def _resolve_loader(data: Optional[Iterable[Any]], shuffle: bool) -> Optional[DataLoader]:
-        if data is None:
-            return None
-        if isinstance(data, DataLoader):
-            return data
-
-        if config.device is None:
-            pin_memory = torch.cuda.is_available()
-        else:
-            try:
-                device_type = torch.device(config.device).type
-                pin_memory = device_type == "cuda"
-            except (RuntimeError, ValueError):
-                pin_memory = False
-
-        return DataLoader(
-            data,
-            batch_size=config.batch_size,
-            shuffle=shuffle,
-            num_workers=config.num_workers,
-            pin_memory=pin_memory,
-            collate_fn=collate_fn,
-        )
-
-    return _resolve_loader(train_data, shuffle=True), _resolve_loader(val_data, shuffle=False)

@@ -10,6 +10,54 @@ from torch.utils.data import DataLoader
 from .configuration import Config
 
 
+@torch.no_grad()
+def evaluate(model: Module, data_loader: Optional[DataLoader], config: Config) -> Dict[str, float]:
+    if data_loader is None:
+        return {"loss": math.nan, "top1": math.nan, "within_k": math.nan, "mae_bins": math.nan}
+
+    model.eval()
+    device = next(model.parameters()).device
+
+    centers_hz = torch.tensor(config.centers_hz(), dtype=torch.float32, device=device)
+    space_centers, _ = _build_space_and_delta(centers_hz, config.log_bins)
+
+    total_loss = torch.zeros(1, device=device)
+    total_mask = torch.zeros(1, device=device)
+    total_top1 = torch.zeros(1, device=device)
+    total_within = torch.zeros(1, device=device)
+    total_mae = torch.zeros(1, device=device)
+
+    for batch in data_loader:
+        x = batch["x"].to(device, non_blocking=True)
+        freq = batch["freq_hz"].to(device, non_blocking=True)
+        mask = batch["valid_mask"].to(device, non_blocking=True).float()
+
+        logits = model(x)
+        target = soft_targets(freq, centers_hz, config.sigma_bins, config.log_bins)
+        log_q = F.log_softmax(logits, dim=-1)
+        frame_loss = -(target * log_q).sum(dim=-1)
+
+        mask_sum = mask.sum()
+        total_loss += (frame_loss * mask).sum()
+        total_mask += mask_sum
+
+        top1, within, mae = _compute_batch_metrics(
+            logits, freq, space_centers, config.within_bins, config.log_bins, mask
+        )
+
+        total_top1 += top1 * mask_sum
+        total_within += within * mask_sum
+        total_mae += mae * mask_sum
+
+    denom = total_mask.clamp_min(1.0)
+    metrics = {
+        "loss": (total_loss / denom).item(),
+        "top1": (total_top1 / denom).item(),
+        "within_k": (total_within / denom).item(),
+        "mae_bins": (total_mae / denom).item(),
+    }
+    return metrics
+
 def _freq_to_space(freq_hz: Tensor, use_log: bool) -> Tensor:
     if use_log:
         return torch.log(freq_hz.clamp_min(1e-12))
@@ -80,50 +128,3 @@ def _compute_batch_metrics(
     return top1_mean, within_mean, mae_mean
 
 
-@torch.no_grad()
-def evaluate(model: Module, data_loader: Optional[DataLoader], config: Config) -> Dict[str, float]:
-    if data_loader is None:
-        return {"loss": math.nan, "top1": math.nan, "within_k": math.nan, "mae_bins": math.nan}
-
-    model.eval()
-    device = next(model.parameters()).device
-
-    centers_hz = torch.tensor(config.centers_hz(), dtype=torch.float32, device=device)
-    space_centers, _ = _build_space_and_delta(centers_hz, config.log_bins)
-
-    total_loss = torch.zeros(1, device=device)
-    total_mask = torch.zeros(1, device=device)
-    total_top1 = torch.zeros(1, device=device)
-    total_within = torch.zeros(1, device=device)
-    total_mae = torch.zeros(1, device=device)
-
-    for batch in data_loader:
-        x = batch["x"].to(device, non_blocking=True)
-        freq = batch["freq_hz"].to(device, non_blocking=True)
-        mask = batch["valid_mask"].to(device, non_blocking=True).float()
-
-        logits = model(x)
-        target = soft_targets(freq, centers_hz, config.sigma_bins, config.log_bins)
-        log_q = F.log_softmax(logits, dim=-1)
-        frame_loss = -(target * log_q).sum(dim=-1)
-
-        mask_sum = mask.sum()
-        total_loss += (frame_loss * mask).sum()
-        total_mask += mask_sum
-
-        top1, within, mae = _compute_batch_metrics(
-            logits, freq, space_centers, config.within_bins, config.log_bins, mask
-        )
-
-        total_top1 += top1 * mask_sum
-        total_within += within * mask_sum
-        total_mae += mae * mask_sum
-
-    denom = total_mask.clamp_min(1.0)
-    metrics = {
-        "loss": (total_loss / denom).item(),
-        "top1": (total_top1 / denom).item(),
-        "within_k": (total_within / denom).item(),
-        "mae_bins": (total_mae / denom).item(),
-    }
-    return metrics
