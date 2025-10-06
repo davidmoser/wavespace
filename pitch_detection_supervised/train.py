@@ -2,8 +2,9 @@ import copy
 import math
 import os
 import random
+from collections.abc import Callable
 from dataclasses import asdict
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import torch
@@ -12,6 +13,7 @@ from torch import Tensor
 from torch.nn import Module
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
+import wandb
 
 from .configuration import Config
 from .evaluate import (
@@ -20,6 +22,80 @@ from .evaluate import (
     _build_space_and_delta,
     _compute_batch_metrics,
 )
+
+
+ModelFactory = Callable[[Config], Module]
+LoaderFactory = Callable[[Config], Optional[DataLoader]]
+ModelLike = Union[Module, ModelFactory]
+LoaderLike = Union[Optional[DataLoader], LoaderFactory]
+
+
+def _login_to_wandb() -> None:
+    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
+
+
+def _init_wandb_run(project: str, config: Optional[Dict[str, Any]] = None) -> None:
+    if config is None:
+        wandb.init(project=project)
+    else:
+        wandb.init(project=project, config=config)
+
+
+def _wandb_config_dict() -> Dict[str, Any]:
+    cfg = wandb.config
+    if hasattr(cfg, "as_dict"):
+        return cfg.as_dict()
+    return dict(cfg)
+
+
+def _log_to_wandb(metrics: Dict[str, Any], step: int) -> None:
+    if not wandb.run:
+        return
+    payload = {}
+    for key, value in metrics.items():
+        if value is None:
+            continue
+        if isinstance(value, Tensor):
+            payload[key] = value.detach().item()
+        elif isinstance(value, (float, int)):
+            payload[key] = float(value)
+        else:
+            payload[key] = value
+    if payload:
+        wandb.log(payload, step=step)
+
+
+def _update_wandb_summary(summary: Dict[str, Any]) -> None:
+    if not wandb.run:
+        return
+    for key, value in summary.items():
+        if value is None:
+            continue
+        wandb.run.summary[key] = value
+
+
+def _resolve_model(model_like: ModelLike, config: Config) -> Module:
+    if isinstance(model_like, Module):
+        return model_like
+    if callable(model_like):
+        model = model_like(config)
+        if not isinstance(model, Module):
+            raise TypeError("Model factory must return an instance of torch.nn.Module")
+        return model
+    raise TypeError("model must be an nn.Module or a callable returning one")
+
+
+def _resolve_loader(loader_like: LoaderLike, config: Config) -> Optional[DataLoader]:
+    if loader_like is None:
+        return None
+    if isinstance(loader_like, DataLoader):
+        return loader_like
+    if callable(loader_like):
+        loader = loader_like(config)
+        if loader is not None and not isinstance(loader, DataLoader):
+            raise TypeError("Loader factory must return a torch.utils.data.DataLoader or None")
+        return loader
+    raise TypeError("loader must be a DataLoader, callable, or None")
 
 
 def _resolve_device(config: Config) -> torch.device:
@@ -100,8 +176,21 @@ def train(
                     logits, freq, space_centers, config.within_bins, config.log_bins, mask
                 )
 
+            current_lr = optimizer.param_groups[0]["lr"]
+            _log_to_wandb(
+                {
+                    "train/loss": loss.item(),
+                    "train/top1": top1.item(),
+                    "train/within_k": within.item(),
+                    "train/mae_bins": mae.item(),
+                    "train/mask_fraction": float(mask_sum.item() / mask.numel()),
+                    "lr": current_lr,
+                    "epoch": epoch,
+                },
+                step=global_step + 1,
+            )
+
             if (global_step + 1) % config.log_interval == 0:
-                current_lr = optimizer.param_groups[0]["lr"]
                 print(
                     f"Epoch {epoch} Step {global_step + 1}: "
                     f"lr={current_lr:.6f} loss={loss.item():.4f} "
@@ -119,6 +208,16 @@ def train(
                     f"within={val_metrics.get('within_k', 0.0):.4f} "
                     f"mae={val_metrics.get('mae_bins', 0.0):.4f}"
                 )
+                _log_to_wandb(
+                    {
+                        "val/loss": val_metrics.get("loss"),
+                        "val/top1": val_metrics.get("top1"),
+                        "val/within_k": val_metrics.get("within_k"),
+                        "val/mae_bins": val_metrics.get("mae_bins"),
+                        "epoch": epoch,
+                    },
+                    step=global_step + 1,
+                )
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     best_val_top1 = val_top1
@@ -133,6 +232,16 @@ def train(
             print(
                 f"Validation @ Epoch {epoch} End: loss={val_loss:.4f} top1={val_top1:.4f} "
                 f"within={val_metrics.get('within_k', 0.0):.4f} mae={val_metrics.get('mae_bins', 0.0):.4f}"
+            )
+            _log_to_wandb(
+                {
+                    "val/loss": val_metrics.get("loss"),
+                    "val/top1": val_metrics.get("top1"),
+                    "val/within_k": val_metrics.get("within_k"),
+                    "val/mae_bins": val_metrics.get("mae_bins"),
+                    "epoch": epoch,
+                },
+                step=global_step,
             )
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
@@ -156,8 +265,71 @@ def train(
         }
         torch.save(payload, save_path)
 
-    return {
+    results = {
         "best_val_loss": best_val_loss if best_val_loss != float("inf") else None,
         "best_val_top1": best_val_top1 if best_val_loss != float("inf") else None,
         "save_path": save_path,
     }
+    _update_wandb_summary(results)
+    return results
+
+
+def single_run(
+        config: Config,
+        model: ModelLike,
+        train_loader: LoaderLike,
+        val_loader: LoaderLike = None,
+        project: str = "pitch-detection-supervised",
+) -> Dict[str, Optional[float]]:
+    """Execute a single Weights & Biases run using the provided resources."""
+
+    _login_to_wandb()
+    _init_wandb_run(project=project, config=asdict(config))
+
+    try:
+        resolved_model = _resolve_model(model, config)
+        resolved_train_loader = _resolve_loader(train_loader, config)
+        if resolved_train_loader is None:
+            raise ValueError("train_loader must be provided")
+        resolved_val_loader = _resolve_loader(val_loader, config)
+        results = train(resolved_model, resolved_train_loader, resolved_val_loader, config)
+    finally:
+        if wandb.run:
+            wandb.finish()
+
+    return results
+
+
+def sweep_run(
+        model_factory: ModelFactory,
+        train_loader_factory: LoaderFactory,
+        val_loader_factory: Optional[LoaderFactory] = None,
+        base_config: Optional[Config] = None,
+        project: str = "pitch-detection-supervised",
+) -> Dict[str, Optional[float]]:
+    """Execute a sweep-configured Weights & Biases run."""
+
+    _login_to_wandb()
+    init_config = asdict(base_config) if base_config is not None else None
+    _init_wandb_run(project=project, config=init_config)
+
+    cfg_dict = _wandb_config_dict()
+    if base_config is not None:
+        merged = dict(init_config or {})
+        merged.update(cfg_dict)
+        cfg_dict = merged
+
+    config = Config.from_dict(cfg_dict)
+
+    try:
+        resolved_model = _resolve_model(model_factory, config)
+        resolved_train_loader = _resolve_loader(train_loader_factory, config)
+        if resolved_train_loader is None:
+            raise ValueError("train_loader_factory must provide a DataLoader")
+        resolved_val_loader = _resolve_loader(val_loader_factory, config)
+        results = train(resolved_model, resolved_train_loader, resolved_val_loader, config)
+    finally:
+        if wandb.run:
+            wandb.finish()
+
+    return results
