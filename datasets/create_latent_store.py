@@ -15,14 +15,14 @@ DatasetItem = Tuple[Tensor, ...]
 
 
 def create_latent_store(
-    dataset: TorchDataset[DatasetItem],
-    lmdb_path: Union[str, Path],
-    *,
-    sample_rate: Optional[int] = None,
-    map_size_bytes: int = 1 << 33,
-    device: Optional[torch.device] = None,
-    encoder: Optional["EncodecModel"] = None,
-    target_bandwidth: Optional[float] = None,
+        dataset: TorchDataset[DatasetItem],
+        lmdb_path: Union[str, Path],
+        *,
+        sample_rate: Optional[int] = None,
+        map_size_bytes: int = 1 << 33,
+        device: Optional[torch.device] = None,
+        encoder: Optional["EncodecModel"] = None,
+        target_bandwidth: Optional[float] = None,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them in LMDB.
 
@@ -91,7 +91,7 @@ def create_latent_store(
                 if not item:
                     raise ValueError("Dataset items must contain at least a waveform tensor.")
 
-                waveform = _ensure_tensor(item[0])
+                waveform = item[0]
                 if waveform.dim() == 1:
                     waveform = waveform.unsqueeze(0)
                 if waveform.dim() != 2:
@@ -105,7 +105,7 @@ def create_latent_store(
 
                 payload: dict[str, Any] = {"latent": latents}
                 if len(item) > 1:
-                    extras = tuple(_ensure_exportable(obj) for obj in item[1:])
+                    extras = tuple(obj for obj in item[1:])
                     payload["extras"] = extras if len(extras) > 1 else extras[0]
 
                 key = f"{index:08d}".encode("utf-8")
@@ -129,18 +129,6 @@ def _iterate_dataset(dataset: TorchDataset[DatasetItem]) -> Iterator[DatasetItem
         if not isinstance(item, tuple):
             raise TypeError("Dataset items must be tuples when accessed by index.")
         yield item
-
-
-def _ensure_tensor(value: Any) -> Tensor:
-    if isinstance(value, Tensor):
-        return value
-    return torch.as_tensor(value)
-
-
-def _ensure_exportable(value: Any) -> Any:
-    if isinstance(value, Tensor):
-        return value.cpu()
-    return value
 
 
 def _put_with_resize(env: lmdb.Environment, key: bytes, value: bytes) -> None:
