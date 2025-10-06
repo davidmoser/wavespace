@@ -1,3 +1,4 @@
+lmdb
 encodec
 descript-audio-codec
 descript-audiotools
