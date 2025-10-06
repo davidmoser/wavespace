@@ -14,7 +14,7 @@ class RandomSineWaveDataset(Dataset[Tuple[Tensor, Tensor]]):
     def __init__(
         self,
         duration: float,
-        sample_rate: int,
+        sampling_rate: int,
         min_frequency: float,
         max_frequency: float,
         num_samples: int,
@@ -25,7 +25,7 @@ class RandomSineWaveDataset(Dataset[Tuple[Tensor, Tensor]]):
 
         Args:
             duration: Length of each audio clip in seconds.
-            sample_rate: Sampling rate used for the generated audio.
+            sampling_rate: Sampling rate used for the generated audio.
             min_frequency: Minimum frequency (Hz) sampled for the sine waves.
             max_frequency: Maximum frequency (Hz) sampled for the sine waves.
             num_samples: Number of audio samples in the dataset.
@@ -33,7 +33,7 @@ class RandomSineWaveDataset(Dataset[Tuple[Tensor, Tensor]]):
         """
         if duration <= 0:
             raise ValueError("duration must be positive")
-        if sample_rate <= 0:
+        if sampling_rate <= 0:
             raise ValueError("sample_rate must be positive")
         if min_frequency <= 0 or max_frequency <= 0:
             raise ValueError("Frequencies must be positive")
@@ -43,7 +43,7 @@ class RandomSineWaveDataset(Dataset[Tuple[Tensor, Tensor]]):
             raise ValueError("num_samples must be positive")
 
         self.duration = float(duration)
-        self.sample_rate = int(sample_rate)
+        self.sample_rate = int(sampling_rate)
         self.min_frequency = float(min_frequency)
         self.max_frequency = float(max_frequency)
         self.num_samples = int(num_samples)
