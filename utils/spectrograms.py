@@ -1,14 +1,6 @@
-import json
-import pathlib
-import subprocess
-from pathlib import Path
-
 import matplotlib.pyplot as plt
 import torch
 import torchaudio
-from demucs.apply import apply_model
-from demucs.audio import AudioFile
-from demucs.pretrained import get_model
 
 from spectrogram_converter.convert import calculate_log_matrix
 
@@ -152,23 +144,3 @@ def wav_to_log_spectrogram_image(
     plt.tight_layout(pad=0)
     plt.savefig(out_img, dpi=100, bbox_inches="tight", pad_inches=0)
     plt.close()
-
-
-def extract_tracks(path: str):
-    src = pathlib.Path(path)  # e.g. python split_tracks.py input.mp4
-    probe = subprocess.check_output([
-        "ffprobe", "-v", "error",
-        "-select_streams", "a",  # audio streams only
-        "-show_entries", "stream=index",
-        "-of", "json", str(src)])
-    for s in json.loads(probe)["streams"]:
-        i = s["index"]  # stream index inside the file
-        out = src.with_suffix(f".track{i}.m4a")
-        subprocess.check_call([
-            "ffmpeg", "-y",  # overwrite if exists
-            "-i", str(src),
-            "-map", f"0:a:{i}",  # pick one audio stream
-            "-c", "copy",  # no re-encoding
-            str(out)])
-        print("wrote", out)
-
