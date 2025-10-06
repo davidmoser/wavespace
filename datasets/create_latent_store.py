@@ -218,7 +218,6 @@ def create_latent_store(
                     "member": sample["path"],
                     "offset": member["offset"],
                     "size": member["size"],
-                    "frequency": sample["frequency"],
                 })
 
     _write_global_metadata(path, combined_metadata)
@@ -275,7 +274,6 @@ def _compress_tar_with_offsets(tar_path: Path, zst_path: Path, members: Sequence
         level=3,
         write_checksum=True,
         write_content_size=True,
-        seekable=True,
     )
 
     offsets: Dict[str, int] = {}
