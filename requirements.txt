@@ -18,4 +18,5 @@ tqdm
 requests
 scaper>=1.6.5
 pyroomacoustics>=0.7.3
+zstandard>=0.23
 
