@@ -17,9 +17,18 @@ dataset = RandomSineWaveDataset(
 
 create_latent_store(
     dataset,
-    f"../resources/encodec_latents/sines_1",
+    dataset_path=f"../resources/encodec_latents/sines_1",
+    metadata={
+        "dataset": "RandomSineWaveDataset",
+        "parameters": {
+            "duration": duration,
+            "sampling_rate": sampling_rate,
+            "min_frequency": min_freq,
+            "max_frequency": max_freq,
+            "num_samples": num_samples,
+        },
+    },
     # sample_rate: Optional[int] = None,
-    # map_size_bytes: int = 1 << 33,
     # device: Optional[torch.device] = None,
     # encoder: Optional["EncodecModel"] = None,
     # target_bandwidth: Optional[float] = None,
