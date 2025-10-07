@@ -1,5 +1,5 @@
 from datasets.create_latent_store import create_latent_store
-from datasets.sine_wave_dataset import RandomSineWaveDataset
+from datasets.sine_wave_dataset import SineWaveDataset
 
 duration = 1
 sampling_rate = 24000
@@ -7,7 +7,7 @@ min_freq = 100
 max_freq = 10000
 num_samples = 10000
 
-dataset = RandomSineWaveDataset(
+dataset = SineWaveDataset(
     duration=duration,
     sampling_rate=sampling_rate,
     min_frequency=min_freq,
