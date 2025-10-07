@@ -23,7 +23,11 @@ NP_RNG = np.random.default_rng(1234)
 
 
 # --- helpers ---
-def midi_to_hz(m): return 440.0 * (2.0 ** ((m - 69) / 12.0))
+def log_uniform(min_hz=100.0, max_hz=10_000.0):
+    """Sample f ~ LogUniform(min_hz, max_hz) using the NumPy RNG for reproducibility."""
+    lo = np.log(float(min_hz))
+    hi = np.log(float(max_hz))
+    return float(np.exp(NP_RNG.uniform(lo, hi)))
 
 
 def adsr_env(n, sr, a=0.01, d=0.05, s=0.6, r=0.2):
@@ -140,7 +144,7 @@ def random_spec():
 def build_dataset_single(
         out_dir="dataset_np",
         n_samples=200,
-        midi_range=(48, 84),  # C3..C6
+        freq_range=(100.0, 10_000.0),  # Hz, log-uniform
         sr=SR,
         dur=DURATION_S
 ):
@@ -150,17 +154,16 @@ def build_dataset_single(
     with open(meta_path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
-            ["filename", "midi", "f0_hz", "partials", "alpha", "detune_cents", "A", "D", "S", "R", "lpf_hz", "drive_db",
-             "reverb_wet", "reverb_room", "sr", "duration_s"])
+            ["filename", "f0_hz", "partials", "alpha", "detune_cents", "A", "D", "S", "R",
+             "lpf_hz", "drive_db", "reverb_wet", "reverb_room", "sr", "duration_s"])
         for i in range(n_samples):
-            midi = RNG.randint(midi_range[0], midi_range[1])
-            f0 = midi_to_hz(midi)
+            f0 = log_uniform(*freq_range)
             spec = random_spec()
             y = render_sample(f0, sr, dur, spec)
-            fname = f"{i:05d}_m{midi}.wav"
+            fname = f"{i:05d}_f{int(round(f0))}Hz.wav"
             sf.write(out / fname, y, sr, subtype="FLOAT")
             w.writerow([
-                fname, midi, f0,
+                fname, f0,
                 spec["partials"], spec["alpha"], spec["detune_cents"],
                 spec["A"], spec["D"], spec["S"], spec["R"],
                 spec["lpf_hz"] if spec["lpf_hz"] is not None else "",
@@ -168,18 +171,19 @@ def build_dataset_single(
                 sr, dur
             ])
     # Save a JSON with the RNG seed for reproducibility
-    (out / "config.json").write_text(json.dumps({"seed_py": 1234, "seed_np": 1234, "sr": sr, "dur": dur}, indent=2))
+    (out / "config.json").write_text(json.dumps(
+        {"seed_py": 1234, "seed_np": 1234, "sr": sr, "dur": dur, "freq_range_hz": freq_range}, indent=2
+    ))
 
 
-def render_poly_interval(midis, sr, dur):
-    """Render a 3 s interval containing all given MIDI notes played simultaneously."""
+def render_poly_interval_freq(freqs_hz, sr, dur):
+    """Render an interval containing all given base frequencies played simultaneously."""
     mix = np.zeros(int(dur * sr), dtype=np.float32)
     f0s = []
-    for m in midis:
-        f0 = midi_to_hz(m)
-        f0s.append(f0)
+    for f0 in freqs_hz:
+        f0s.append(float(f0))
         spec = random_spec()
-        note = render_sample(f0, sr, dur, spec)
+        note = render_sample(float(f0), sr, dur, spec)
         mix += note
     # normalize poly mix with headroom
     peak = np.max(np.abs(mix)) + 1e-12
@@ -190,7 +194,7 @@ def render_poly_interval(midis, sr, dur):
 def build_dataset_poly(
         out_dir="dataset_polyphonic",
         n_samples=200,
-        midi_range=(48, 84),  # C3..C6
+        freq_range=(100.0, 10_000.0),  # Hz, log-uniform
         max_polyphony=5,
         sr=SR,
         duration=DURATION_S
@@ -200,35 +204,34 @@ def build_dataset_poly(
     meta_path = out / "metadata.csv"
     with open(meta_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["filename", "k_notes", "midis", "f0s_hz", "sr", "duration_s"])
+        w.writerow(["filename", "k_notes", "f0s_hz", "sr", "duration_s"])
         for i in range(n_samples):
             k = RNG.randint(1, max_polyphony)
-            # sample without replacement to avoid exact unisons (allow if range too small)
-            pool = list(range(midi_range[0], midi_range[1] + 1))
-            midis = RNG.sample(pool, k) if len(pool) >= k else [RNG.randint(*midi_range) for _ in range(k)]
-            y, f0s = render_poly_interval(midis, sr, duration)
+            freqs = [log_uniform(*freq_range) for _ in range(k)]
+            y, f0s = render_poly_interval_freq(freqs, sr, duration)
             fname = f"{i:05d}_k{k}.wav"
             sf.write(out / fname, y, sr, subtype="FLOAT")
-            w.writerow([fname, k, ";".join(map(str, midis)), ";".join(f"{f0:.6f}" for f0 in f0s), sr, duration])
+            w.writerow([fname, k, ";".join(f"{f0:.6f}" for f0 in f0s), sr, duration])
 
     (out / "config.json").write_text(json.dumps(
-        {"seed_py": 1234, "seed_np": 1234, "sr": sr, "duration": duration, "max_polyphony": max_polyphony},
+        {"seed_py": 1234, "seed_np": 1234, "sr": sr, "duration": duration,
+         "max_polyphony": max_polyphony, "freq_range_hz": freq_range},
         indent=2
     ))
 
 
-# --- NEW: asynchronous (staggered) polyphonic interval renderer ---
-def render_poly_interval_async(midis, sr, dur, min_note_dur=0.12):
+# --- asynchronous (staggered) polyphonic interval renderer ---
+def render_poly_interval_async_freq(freqs_hz, sr, dur, min_note_dur=0.12):
     """
-    Render a 3 s interval where each MIDI note has a random onset and duration within the interval.
+    Render an interval where each base frequency has a random onset and duration within the interval.
     Notes may overlap arbitrarily.
     """
     n_total = int(dur * sr)
     mix = np.zeros(n_total, dtype=np.float32)
 
     f0s, onsets_s, durs_s = [], [], []
-    for m in midis:
-        f0 = midi_to_hz(m)
+    for f0 in freqs_hz:
+        f0 = float(f0)
         f0s.append(f0)
 
         # random onset and duration inside [0, dur]
@@ -257,13 +260,13 @@ def render_poly_interval_async(midis, sr, dur, min_note_dur=0.12):
 def build_dataset_poly_async(
         out_dir="dataset_polyphonic_async",
         n_samples=200,
-        midi_range=(48, 84),  # C3..C6
+        freq_range=(100.0, 10_000.0),  # Hz, log-uniform
         max_polyphony=5,
         sr=SR,
         duration=DURATION_S
 ):
     """
-    Create a dataset of 3 s clips. For each clip, pick K~Uniform{1..max_polyphony} notes.
+    Create a dataset of clips. For each clip, pick K~Uniform{1..max_polyphony} base frequencies (log-uniform in freq_range).
     Each note starts/ends at a random time inside the interval.
     """
     out = Path(out_dir)
@@ -272,15 +275,14 @@ def build_dataset_poly_async(
     with open(meta_path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow([
-            "filename", "k_notes", "midis", "f0s_hz", "onsets_s", "durs_s", "sr", "duration_s"
+            "filename", "k_notes", "f0s_hz", "onsets_s", "durs_s", "sr", "duration_s"
         ])
 
         for i in range(n_samples):
             k = RNG.randint(1, max_polyphony)
-            pool = list(range(midi_range[0], midi_range[1] + 1))
-            midis = RNG.sample(pool, k) if len(pool) >= k else [RNG.randint(*midi_range) for _ in range(k)]
+            freqs = [log_uniform(*freq_range) for _ in range(k)]
 
-            y, f0s, onsets_s, durs_s = render_poly_interval_async(midis, sr, duration)
+            y, f0s, onsets_s, durs_s = render_poly_interval_async_freq(freqs, sr, duration)
 
             fname = f"{i:05d}_k{k}_async.wav"
             sf.write(out / fname, y, sr, subtype="FLOAT")
@@ -288,7 +290,6 @@ def build_dataset_poly_async(
             w.writerow([
                 fname,
                 k,
-                ";".join(map(str, midis)),
                 ";".join(f"{f0:.6f}" for f0 in f0s),
                 ";".join(f"{t:.6f}" for t in onsets_s),
                 ";".join(f"{d:.6f}" for d in durs_s),
@@ -297,10 +298,11 @@ def build_dataset_poly_async(
             ])
 
     (out / "config.json").write_text(json.dumps(
-        {"seed_py": 1234, "seed_np": 1234, "sr": sr, "dur": duration, "max_polyphony": max_polyphony, "mode": "async"},
+        {"seed_py": 1234, "seed_np": 1234, "sr": sr, "dur": duration,
+         "max_polyphony": max_polyphony, "mode": "async", "freq_range_hz": freq_range},
         indent=2
     ))
 
 
 if __name__ == "__main__":
-    build_dataset_poly_async(out_dir="../resources/polyphony_samples", n_samples=300, duration=3, max_polyphony=5)
+    build_dataset_poly_async(out_dir="../resources/polyphony_samples", n_samples=50, duration=3, max_polyphony=5)
