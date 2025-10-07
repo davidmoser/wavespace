@@ -32,12 +32,10 @@ class _MemberInfo:
 def create_latent_store(
         dataset: TorchDataset[DatasetItem],
         dataset_path: Union[str, Path],
-        *,
-        sample_rate: Optional[int] = None,
-        device: Optional[torch.device] = None,
-        encoder: Optional["EncodecModel"] = None,
-        target_bandwidth: Optional[float] = None,
+        dataset_sample_rate: int,
+        target_bandwidth: float = 24.0,  # kbit/s
         metadata: Optional[Dict[str, Any]] = None,
+        device: Optional[torch.device] = None,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
@@ -47,16 +45,14 @@ def create_latent_store(
             elements are stored alongside the latent representation.
         dataset_path: Destination directory for the WebDataset shards. Parent
             directories are created automatically.
-        sample_rate: Original sample rate of the dataset audio. When omitted the
-            function attempts to read a ``sample_rate`` attribute from the
-            dataset instance.
+        dataset_sample_rate: Original sample rate of the dataset audio.
         device: Optional torch device for running the EnCodec encoder. Defaults
             to ``"cuda"`` when available otherwise ``"cpu"``.
         encoder: Optional pre-configured ``EncodecModel`` instance. When not
             provided the 24 kHz pretrained encoder shipped with the library is
             used.
         target_bandwidth: Optional bandwidth value passed to the encoder via
-            ``set_target_bandwidth``.
+            ``set_target_bandwidth``. Unit is kbit/s, [1.5, 3, 6, 12, 24]
         metadata: Optional mapping of metadata describing the dataset creation
             context. These values are stored under the ``"external"`` key in the
             resulting dataset metadata file alongside encoding metadata recorded
@@ -68,10 +64,6 @@ def create_latent_store(
 
     if not isinstance(dataset, TorchDataset):
         raise TypeError("dataset must be an instance of torch.utils.data.Dataset.")
-
-    dataset_sample_rate = sample_rate if sample_rate is not None else getattr(dataset, "sample_rate", None)
-    if dataset_sample_rate is None:
-        raise ValueError("Dataset sample rate must be provided explicitly or via a 'sample_rate' attribute.")
 
     try:
         total_samples = len(dataset)  # type: ignore[arg-type]
@@ -87,15 +79,10 @@ def create_latent_store(
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = encoder or EncodecModel.encodec_model_24khz()
-    if target_bandwidth is not None:
-        model.set_target_bandwidth(target_bandwidth)
+    model = EncodecModel.encodec_model_24khz()
+    model.set_target_bandwidth(target_bandwidth)
     model = model.to(device)
     model.eval()
-
-    generator = torch.Generator(device="cpu")
-    generator.manual_seed(0)
-    permutation = torch.randperm(total_samples, generator=generator).tolist()
 
     shard_count = math.ceil(total_samples / _SAMPLES_PER_SHARD)
     shard_pad = max(3, len(str(shard_count - 1)))
@@ -125,11 +112,9 @@ def create_latent_store(
 
     with torch.inference_mode():
         for shard_idx in range(shard_count):
+            print(f"Shard {shard_idx + 1}/{shard_count}")
             start = shard_idx * _SAMPLES_PER_SHARD
             end = min(start + _SAMPLES_PER_SHARD, total_samples)
-            shard_indices = permutation[start:end]
-            if not shard_indices:
-                break
 
             shard_name = f"dataset-{shard_idx:0{shard_pad}d}"
             tar_path = path / f"{shard_name}.tar"
@@ -142,7 +127,9 @@ def create_latent_store(
             shard_samples: List[Dict[str, Any]] = []
 
             with tarfile.open(tar_path, mode="w", format=tarfile.PAX_FORMAT) as tar:
-                for position, dataset_index in enumerate(shard_indices, start=start):
+                for dataset_index in range(start, end):
+                    if dataset_index % 100 == 0:
+                        print(f"Sample index {dataset_index}/{total_samples}")
                     item = dataset[dataset_index]  # type: ignore[index]
                     if not isinstance(item, tuple) or not item:
                         raise TypeError("Dataset items must be tuples with at least a waveform tensor.")
@@ -159,23 +146,19 @@ def create_latent_store(
 
                     latents = model.encoder(resampled).squeeze(0).contiguous().to("cpu")
 
-                    if len(item) < 2:
-                        raise ValueError("Dataset items must provide a frequency label as the second element.")
+                    if len(item) != 2:
+                        raise ValueError(
+                            f"Dataset items must provide exactly one label (frequency) as the second element, but has length {len(item)}.")
 
                     frequency_tensor = item[1]
                     frequency_value = _to_float(frequency_tensor)
-
-                    extras: Sequence[Any] = tuple(obj for obj in item[2:]) if len(item) > 2 else ()
 
                     payload: Dict[str, Any] = {
                         "latent": latents,
                         "frequency": torch.tensor(frequency_value, dtype=torch.float32),
                     }
-                    if extras:
-                        converted = _prepare_extras(extras)
-                        payload["extras"] = converted if len(converted) > 1 else converted[0]
 
-                    key = f"{position:0{key_pad}d}"
+                    key = f"{dataset_index:0{key_pad}d}"
                     filename = f"{key}.pt"
 
                     buffer = io.BytesIO()
@@ -235,7 +218,8 @@ def _write_global_metadata(destination: Path, metadata: Dict[str, Any]) -> None:
 def _write_index(destination: Path, records: Iterable[Dict[str, Any]]) -> None:
     index_path = destination / "index.jsonl"
     with index_path.open("w", encoding="utf-8") as file:
-        file.write(json.dumps({"__meta__": {"version": "1.0", "schema": "key,shard,member,offset,size"}}, separators=(",", ":")) + "\n")
+        file.write(json.dumps({"__meta__": {"version": "1.0", "schema": "key,shard,member,offset,size"}},
+                              separators=(",", ":")) + "\n")
         for record in records:
             file.write(json.dumps(record, separators=(",", ":")) + "\n")
 
