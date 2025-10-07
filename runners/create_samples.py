@@ -1,133 +1,24 @@
+"""Dataset creation routines for polyphonic sample generation."""
+
 # Offline dataset renderer: NumPy + SciPy + SoundFile (+ optional Pedalboard reverb)
 # pip install numpy scipy soundfile pedalboard
 import csv
 import json
-import random
 from pathlib import Path
 
-import numpy as np
 import soundfile as sf
-from scipy.signal import butter, lfilter
 
-try:
-    from pedalboard import Pedalboard, Reverb
-
-    HAVE_PEDALBOARD = True
-except Exception:
-    HAVE_PEDALBOARD = False
+from datasets.poly_utils import (
+    RNG,
+    Spec,
+    log_uniform,
+    render_poly_interval_async_freq,
+    render_poly_interval_freq,
+    render_sample,
+)
 
 SR = 44_100
 DURATION_S = 1.5  # per sample
-RNG = random.Random(1234)
-NP_RNG = np.random.default_rng(1234)
-
-
-# --- helpers ---
-def log_uniform(min_hz=100.0, max_hz=10_000.0):
-    """Sample f ~ LogUniform(min_hz, max_hz) using the NumPy RNG for reproducibility."""
-    lo = np.log(float(min_hz))
-    hi = np.log(float(max_hz))
-    return float(np.exp(NP_RNG.uniform(lo, hi)))
-
-
-def random_env(n, a1, a2, b, c1, c2):
-    knot_vals = np.array([0.0, a1, a2, b, c1, c2, 0.0], dtype=np.float32)
-    knot_pos = np.linspace(0.0, n - 1, num=7, dtype=np.float32)  # even intervals over duration
-    x = np.arange(n, dtype=np.float32)
-
-    env = np.interp(x, knot_pos, knot_vals).astype(np.float32)
-    return env
-
-
-def biquad_lpf(x, sr, cutoff_hz, order=4):
-    # Butterworth low-pass (stable, simple)
-    nyq = 0.5 * sr
-    wc = min(max(cutoff_hz / nyq, 1e-5), 0.999)
-    b, a = butter(order, wc, btype='low', analog=False)
-    return lfilter(b, a, x).astype(np.float32)
-
-
-def additive_harmonic(f0, sr, dur, n_partials=10, alpha=1.0, detune_cents_std=3.0, phase_random=True):
-    n = int(dur * sr)
-    t = np.arange(n, dtype=np.float32) / sr
-    # 1/n^alpha spectral tilt
-    partial_idxs = np.arange(1, n_partials + 1, dtype=np.float32)
-    amps = (1.0 / (partial_idxs ** alpha)).astype(np.float32)
-    amps /= amps.max()
-    # small randomization per partial
-    amps *= NP_RNG.uniform(0.85, 1.15, size=n_partials).astype(np.float32)
-    # detune in cents
-    detune = NP_RNG.normal(0.0, detune_cents_std, size=n_partials).astype(np.float32)
-    freqs = f0 * partial_idxs * (2.0 ** (detune / 1200.0))
-    phases = NP_RNG.uniform(0, 2 * np.pi, size=n_partials).astype(np.float32) if phase_random else np.zeros(n_partials,
-                                                                                                            np.float32)
-    # accumulate
-    y = np.zeros(n, dtype=np.float32)
-    for a, f, p in zip(amps, freqs, phases):
-        y += a * np.sin(2 * np.pi * f * t + p, dtype=np.float32)
-    # normalize to peak 1 before envelope/effects
-    peak = np.max(np.abs(y)) + 1e-9
-    return (y / peak).astype(np.float32)
-
-
-def simple_clip(x, drive=0.0):
-    # soft saturation via tanh; drive in dB
-    g = 10.0 ** (drive / 20.0)
-    return np.tanh(g * x).astype(np.float32)
-
-
-def apply_reverb_offline(x, sr, wet=0.15, room_size=0.3):
-    if not HAVE_PEDALBOARD:
-        return x
-    board = Pedalboard([Reverb(room_size=room_size, wet_level=wet, dry_level=1.0 - wet)])
-    return board(x.reshape(1, -1), sample_rate=sr).reshape(-1).astype(np.float32)
-
-
-# --- dataset generation ---
-def render_sample(f0, sr, dur, spec):
-    n = int(dur * sr)
-    # Synthesis
-    tone = additive_harmonic(
-        f0=f0,
-        sr=sr,
-        dur=dur,
-        n_partials=spec["partials"],
-        alpha=spec["alpha"],
-        detune_cents_std=spec["detune_cents"]
-    )
-    # Envelope
-    env = random_env(n, spec["A1"], spec["A2"], spec["B"], spec["C1"], spec["C2"])
-    y = (tone * env).astype(np.float32)
-    # Optional filtering
-    if spec["lpf_hz"] is not None:
-        y = biquad_lpf(y, sr, cutoff_hz=spec["lpf_hz"], order=4)
-    # Optional drive
-    if spec["drive_db"] != 0.0:
-        y = simple_clip(y, drive=spec["drive_db"])
-    # Optional reverb
-    if spec["reverb_wet"] > 0.0:
-        y = apply_reverb_offline(y, sr, wet=spec["reverb_wet"], room_size=spec["reverb_room"])
-    # Final normalize to -1..1 with a little headroom
-    peak = np.max(np.abs(y)) + 1e-12
-    y = (0.95 * y / peak).astype(np.float32)
-    return y
-
-
-def random_spec():
-    return {
-        "partials": RNG.randint(5, 24),
-        "alpha": RNG.uniform(0.6, 2.4),
-        "detune_cents": RNG.uniform(0.0, 8.0),
-        "A1": RNG.uniform(0., 1.),
-        "A2": RNG.uniform(0., 1.),
-        "B": RNG.uniform(0.5, 1.),
-        "C1": RNG.uniform(0., 1.),
-        "C2": RNG.uniform(0., 1.),
-        "lpf_hz": RNG.choice([None, RNG.uniform(1_500, 12_000)]),
-        "drive_db": RNG.choice([0.0, RNG.uniform(1.5, 10.0)]),
-        "reverb_wet": RNG.choice([0.0, RNG.uniform(0.05, 0.25)]),
-        "reverb_room": RNG.uniform(0.1, 0.6),
-    }
 
 
 def build_dataset_single(
@@ -147,37 +38,31 @@ def build_dataset_single(
              "lpf_hz", "drive_db", "reverb_wet", "reverb_room", "sr", "duration_s"])
         for i in range(n_samples):
             f0 = log_uniform(*freq_range)
-            spec = random_spec()
+            spec = Spec()
             y = render_sample(f0, sr, dur, spec)
             fname = f"{i:05d}_f{int(round(f0))}Hz.wav"
             sf.write(out / fname, y, sr, subtype="FLOAT")
             w.writerow([
-                fname, f0,
-                spec["partials"], spec["alpha"], spec["detune_cents"],
-                spec["A"], spec["D"], spec["S"], spec["R"],
-                spec["lpf_hz"] if spec["lpf_hz"] is not None else "",
-                spec["drive_db"], spec["reverb_wet"], spec["reverb_room"],
-                sr, dur
+                fname,
+                f0,
+                spec.partials,
+                spec.alpha,
+                spec.detune_cents,
+                spec.A1,
+                spec.A2,
+                spec.C1,
+                spec.C2,
+                spec.lpf_hz if spec.lpf_hz is not None else "",
+                spec.drive_db,
+                spec.reverb_wet,
+                spec.reverb_room,
+                sr,
+                dur,
             ])
     # Save a JSON with the RNG seed for reproducibility
     (out / "config.json").write_text(json.dumps(
         {"seed_py": 1234, "seed_np": 1234, "sr": sr, "dur": dur, "freq_range_hz": freq_range}, indent=2
     ))
-
-
-def render_poly_interval_freq(freqs_hz, sr, dur):
-    """Render an interval containing all given base frequencies played simultaneously."""
-    mix = np.zeros(int(dur * sr), dtype=np.float32)
-    f0s = []
-    for f0 in freqs_hz:
-        f0s.append(float(f0))
-        spec = random_spec()
-        note = render_sample(float(f0), sr, dur, spec)
-        mix += note
-    # normalize poly mix with headroom
-    peak = np.max(np.abs(mix)) + 1e-12
-    mix = (0.95 * mix / peak).astype(np.float32)
-    return mix, f0s
 
 
 def build_dataset_poly(
@@ -207,43 +92,6 @@ def build_dataset_poly(
          "max_polyphony": max_polyphony, "freq_range_hz": freq_range},
         indent=2
     ))
-
-
-# --- asynchronous (staggered) polyphonic interval renderer ---
-def render_poly_interval_async_freq(freqs_hz, sr, dur, min_note_dur=0.12):
-    """
-    Render an interval where each base frequency has a random onset and duration within the interval.
-    Notes may overlap arbitrarily.
-    """
-    n_total = int(dur * sr)
-    mix = np.zeros(n_total, dtype=np.float32)
-
-    f0s, onsets_s, durs_s = [], [], []
-    for f0 in freqs_hz:
-        f0 = float(f0)
-        f0s.append(f0)
-
-        # random onset and duration inside [0, dur]
-        onset_s = RNG.uniform(0.0, dur - min_note_dur)
-        max_dur = max(min(dur - onset_s, dur), min_note_dur)
-        note_dur = RNG.uniform(min_note_dur, max_dur)
-
-        # synthesize this note with its own random spec and duration
-        spec = random_spec()
-        y = render_sample(f0, sr, note_dur, spec)
-
-        # mix in at onset
-        start = int(onset_s * sr)
-        end = min(start + len(y), n_total)
-        mix[start:end] += y[: end - start]
-
-        onsets_s.append(onset_s)
-        durs_s.append(note_dur)
-
-    # normalize poly mix with headroom
-    peak = float(np.max(np.abs(mix)) + 1e-12)
-    mix = (0.95 * mix / peak).astype(np.float32)
-    return mix, f0s, onsets_s, durs_s
 
 
 def build_dataset_poly_async(
