@@ -30,24 +30,12 @@ def log_uniform(min_hz=100.0, max_hz=10_000.0):
     return float(np.exp(NP_RNG.uniform(lo, hi)))
 
 
-def adsr_env(n, sr, a=0.01, d=0.05, s=0.6, r=0.2):
-    a_n = int(a * sr)
-    d_n = int(d * sr)
-    r_n = int(r * sr)
-    s_n = max(0, n - (a_n + d_n + r_n))
-    if a_n < 1: a_n = 1
-    if d_n < 1: d_n = 1
-    if r_n < 1: r_n = 1
-    env = np.concatenate([
-        np.linspace(0, 1, a_n, endpoint=False),
-        np.linspace(1, s, d_n, endpoint=False),
-        np.full(s_n, s, dtype=np.float32),
-        np.linspace(s, 0, r_n, endpoint=True)
-    ]).astype(np.float32)
-    if len(env) < n:
-        env = np.pad(env, (0, n - len(env)))
-    else:
-        env = env[:n]
+def random_env(n, a1, a2, b, c1, c2):
+    knot_vals = np.array([0.0, a1, a2, b, c1, c2, 0.0], dtype=np.float32)
+    knot_pos = np.linspace(0.0, n - 1, num=7, dtype=np.float32)  # even intervals over duration
+    x = np.arange(n, dtype=np.float32)
+
+    env = np.interp(x, knot_pos, knot_vals).astype(np.float32)
     return env
 
 
@@ -108,7 +96,7 @@ def render_sample(f0, sr, dur, spec):
         detune_cents_std=spec["detune_cents"]
     )
     # Envelope
-    env = adsr_env(n, sr, a=spec["A"], d=spec["D"], s=spec["S"], r=spec["R"])
+    env = random_env(n, spec["A1"], spec["A2"], spec["B"], spec["C1"], spec["C2"])
     y = (tone * env).astype(np.float32)
     # Optional filtering
     if spec["lpf_hz"] is not None:
@@ -130,10 +118,11 @@ def random_spec():
         "partials": RNG.randint(5, 24),
         "alpha": RNG.uniform(0.6, 2.4),
         "detune_cents": RNG.uniform(0.0, 8.0),
-        "A": RNG.uniform(0.005, 0.06),
-        "D": RNG.uniform(0.03, 0.2),
-        "S": RNG.uniform(0.4, 0.95),
-        "R": RNG.uniform(0.08, 0.35),
+        "A1": RNG.uniform(0., 1.),
+        "A2": RNG.uniform(0., 1.),
+        "B": RNG.uniform(0.5, 1.),
+        "C1": RNG.uniform(0., 1.),
+        "C2": RNG.uniform(0., 1.),
         "lpf_hz": RNG.choice([None, RNG.uniform(1_500, 12_000)]),
         "drive_db": RNG.choice([0.0, RNG.uniform(1.5, 10.0)]),
         "reverb_wet": RNG.choice([0.0, RNG.uniform(0.05, 0.25)]),
@@ -284,7 +273,7 @@ def build_dataset_poly_async(
 
             y, f0s, onsets_s, durs_s = render_poly_interval_async_freq(freqs, sr, duration)
 
-            fname = f"{i:05d}_k{k}_async.wav"
+            fname = f"{i:04d}_k{k}.wav"
             sf.write(out / fname, y, sr, subtype="FLOAT")
 
             w.writerow([
