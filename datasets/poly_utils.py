@@ -108,31 +108,6 @@ class Spec:
     reverb_wet: float = field(default_factory=lambda: _optional_uniform_with_zero(0.05, 0.25))
     reverb_room: float = field(default_factory=lambda: RNG.uniform(0.1, 0.6))
 
-    def as_dict(self) -> dict:
-        return {
-            "partials": self.partials,
-            "alpha": self.alpha,
-            "detune_cents": self.detune_cents,
-            "A1": self.A1,
-            "A2": self.A2,
-            "B": self.B,
-            "C1": self.C1,
-            "C2": self.C2,
-            "lpf_hz": self.lpf_hz,
-            "drive_db": self.drive_db,
-            "reverb_wet": self.reverb_wet,
-            "reverb_room": self.reverb_room,
-        }
-
-    def __getitem__(self, key: str):
-        alias_map = {"A": "A1", "D": "A2", "S": "C1", "R": "C2"}
-        if key in alias_map:
-            key = alias_map[key]
-        try:
-            return getattr(self, key)
-        except AttributeError as exc:
-            raise KeyError(key) from exc
-
 
 def render_sample(f0: float, sr: float, dur: float, spec: Spec) -> np.ndarray:
     n = int(dur * sr)
