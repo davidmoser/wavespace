@@ -8,7 +8,7 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 
-class SineWaveDataset(Dataset[Tuple[Tensor, Tensor]]):
+class SineDataset(Dataset[Tuple[Tensor, Tensor]]):
     """Dataset that yields mono sine waves with randomised frequencies."""
 
     def __init__(
