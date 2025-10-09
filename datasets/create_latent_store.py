@@ -122,7 +122,7 @@ def create_latent_store(
             manifest_path = path / f"{shard_name}.jsonl"
 
             manifest_records: List[Dict[str, Any]] = [
-                {"__meta__": {"version": "1.0", "schema": "key,path,frequency"}}
+                {"__meta__": {"version": "1.1", "schema": "key,path,events"}}
             ]
             shard_samples: List[Dict[str, Any]] = []
 
@@ -146,23 +146,17 @@ def create_latent_store(
 
                     latents = model.encoder(resampled).squeeze(0).contiguous().to("cpu")
 
-                    if len(item) != 2:
+                    if len(item) < 2:
                         raise ValueError(
-                            f"Dataset items must provide exactly one label (frequency) as the second element, but has length {len(item)}.")
+                            "Dataset items must provide a label as the second element.")
 
-                    frequency_tensor = item[1]
-                    frequency_value = _to_float(frequency_tensor)
-
-                    payload: Dict[str, Any] = {
-                        "latent": latents,
-                        "frequency": torch.tensor(frequency_value, dtype=torch.float32),
-                    }
+                    events = item[1]
 
                     key = f"{dataset_index:0{key_pad}d}"
                     filename = f"{key}.pt"
 
                     buffer = io.BytesIO()
-                    torch.save(payload, buffer)
+                    torch.save(latents, buffer)
                     data = buffer.getvalue()
 
                     tarinfo = tarfile.TarInfo(name=filename)
@@ -170,17 +164,18 @@ def create_latent_store(
                     tarinfo.mtime = int(time.time())
                     tar.addfile(tarinfo, io.BytesIO(data))
 
-                    manifest_records.append({
+                    record: Dict[str, Any] = {
                         "key": key,
                         "path": filename,
-                        "frequency": frequency_value,
-                        "shape": list(latents.shape),
-                        "dtype": str(latents.dtype),
-                    })
+                        "events": [
+                            {"frequency": freq, "start": start, "end": end}
+                            for freq, start, end in events
+                        ],
+                    }
+                    manifest_records.append(record)
                     shard_samples.append({
                         "key": key,
                         "path": filename,
-                        "frequency": frequency_value,
                     })
 
             members = _read_tar_members(tar_path)
@@ -299,19 +294,6 @@ def _compress_tar_with_offsets(tar_path: Path, zst_path: Path, members: Sequence
         end = offsets_in_order[idx + 1]
         results.append({"member": name, "offset": start, "size": end - start})
     return results
-
-
-def _to_float(value: Any) -> float:
-    if isinstance(value, Tensor):
-        tensor = value.detach().cpu().reshape(-1)
-        if tensor.numel() != 1:
-            raise ValueError("Frequency tensor must contain exactly one element.")
-        return float(tensor.item())
-    if isinstance(value, (int, float)):
-        return float(value)
-    raise TypeError("Frequency value must be a scalar tensor or numeric type.")
-
-
 def _prepare_extras(extras: Sequence[Any]) -> Tuple[Any, ...]:
     converted: List[Any] = []
     for value in extras:
