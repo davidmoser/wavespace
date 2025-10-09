@@ -201,7 +201,6 @@ def create_latent_store(
     _write_global_metadata(path, combined_metadata)
     _write_index(path, global_index)
     _write_shard_list(path, shard_paths)
-    _write_shuffle_file(path, len(shard_paths))
 
 
 def _write_global_metadata(destination: Path, metadata: Dict[str, Any]) -> None:
@@ -224,14 +223,6 @@ def _write_shard_list(destination: Path, shard_paths: Sequence[str]) -> None:
     with shard_list_path.open("w", encoding="utf-8") as file:
         for shard in shard_paths:
             file.write(f"{shard}\n")
-
-
-def _write_shuffle_file(destination: Path, num_shards: int) -> None:
-    shuffle_path = destination / "shuffle.npy"
-    rng = np.random.default_rng(seed=0)
-    permutation = rng.permutation(num_shards)
-    np.save(shuffle_path, permutation, allow_pickle=False)
-
 
 def _read_tar_members(tar_path: Path) -> List[_MemberInfo]:
     members: List[_MemberInfo] = []
