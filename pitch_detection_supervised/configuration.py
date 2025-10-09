@@ -61,12 +61,3 @@ class Config:
 
         step = (self.fmax_hz - self.fmin_hz) / (self.n_classes - 1)
         return [self.fmin_hz + step * i for i in range(self.n_classes)]
-
-    @staticmethod
-    def from_dict(d: dict) -> "Config":
-        if not isinstance(d, dict):
-            raise TypeError("from_dict expects a dictionary")
-        valid_keys = {f.name for f in fields(Config)}
-        kwargs = {key: value for key, value in d.items() if key in valid_keys}
-        config = Config(**kwargs)
-        return config

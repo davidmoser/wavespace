@@ -29,13 +29,14 @@ class DilatedTCN(nn.Module):
     """
 
     def __init__(
-        self,
-        n_classes: int = 128,
-        seq_len: int = 75,
-        latent_dim: int = 128,
-        hidden_dim: int = 256,
-        use_third_block: bool = False,
-        dropout: float = 0.0,
+            self,
+            *,
+            n_classes: int = 128,
+            seq_len: int = 75,
+            latent_dim: int = 128,
+            hidden_dim: int = 256,
+            use_third_block: bool = False,
+            dropout: float = 0.0,
     ) -> None:
         super().__init__()
 
@@ -73,12 +74,12 @@ class DilatedTCN(nn.Module):
 
     @staticmethod
     def _make_block(
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int,
-        dilation: int,
-        padding: int,
-        dropout: float,
+            in_channels: int,
+            out_channels: int,
+            kernel_size: int,
+            dilation: int,
+            padding: int,
+            dropout: float,
     ) -> nn.Sequential:
         layers: List[nn.Module] = [
             nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, dilation=dilation, padding=padding),

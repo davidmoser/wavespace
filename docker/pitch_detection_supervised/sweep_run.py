@@ -57,7 +57,7 @@ def _base_config() -> Optional[Config]:
     data = json.loads(base_json)
     if not isinstance(data, dict):
         raise TypeError('PITCH_SUP_BASE_CONFIG must encode a dictionary.')
-    return Config.from_dict(data)
+    return Config(**data)
 
 
 def main() -> None:
