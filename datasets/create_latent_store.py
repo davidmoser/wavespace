@@ -20,7 +20,7 @@ from torch.utils.data import Dataset as TorchDataset
 
 DatasetItem = Tuple[Tensor, ...]
 
-_SAMPLES_PER_SHARD = 10_000
+_DEFAULT_SAMPLES_PER_SHARD = 10_000
 
 
 @dataclass
@@ -36,6 +36,7 @@ def create_latent_store(
         target_bandwidth: float = 24.0,  # kbit/s
         metadata: Optional[Dict[str, Any]] = None,
         device: Optional[torch.device] = None,
+        samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
@@ -57,6 +58,8 @@ def create_latent_store(
             context. These values are stored under the ``"external"`` key in the
             resulting dataset metadata file alongside encoding metadata recorded
             by this function.
+        samples_per_shard: Optional number of samples to include in each shard of
+            the generated store. Defaults to 10,000 samples per shard.
     """
 
     from encodec import EncodecModel
@@ -73,6 +76,11 @@ def create_latent_store(
     if total_samples <= 0:
         raise ValueError("dataset must contain at least one sample")
 
+    if samples_per_shard <= 0:
+        raise ValueError("samples_per_shard must be a positive integer")
+
+    samples_per_shard = int(samples_per_shard)
+
     path = Path(dataset_path)
     path.mkdir(parents=True, exist_ok=True)
 
@@ -84,7 +92,7 @@ def create_latent_store(
     model = model.to(device)
     model.eval()
 
-    shard_count = math.ceil(total_samples / _SAMPLES_PER_SHARD)
+    shard_count = math.ceil(total_samples / samples_per_shard)
     shard_pad = max(3, len(str(shard_count - 1)))
     key_pad = max(4, len(str(total_samples - 1)))
 
@@ -95,7 +103,7 @@ def create_latent_store(
         "encoder_channels": int(model.channels),
         "target_bandwidth": model.bandwidth,
         "dataset_type": type(dataset).__qualname__,
-        "shard_size": _SAMPLES_PER_SHARD,
+        "shard_size": int(samples_per_shard),
         "num_shards": shard_count,
         "key_width": key_pad,
         "shard_name_width": shard_pad,
@@ -113,8 +121,8 @@ def create_latent_store(
     with torch.inference_mode():
         for shard_idx in range(shard_count):
             print(f"Shard {shard_idx + 1}/{shard_count}")
-            start = shard_idx * _SAMPLES_PER_SHARD
-            end = min(start + _SAMPLES_PER_SHARD, total_samples)
+            start = shard_idx * samples_per_shard
+            end = min(start + samples_per_shard, total_samples)
 
             shard_name = f"dataset-{shard_idx:0{shard_pad}d}"
             tar_path = path / f"{shard_name}.tar"
