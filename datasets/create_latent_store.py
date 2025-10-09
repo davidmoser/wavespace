@@ -10,7 +10,7 @@ import tarfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import torch
 import zstandard
@@ -39,6 +39,7 @@ def create_latent_store(
         metadata: Optional[Dict[str, Any]] = None,
         device: Optional[torch.device] = None,
         samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
+        latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]] = None,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
@@ -59,6 +60,10 @@ def create_latent_store(
             by this function.
         samples_per_shard: Optional number of samples to include in each shard of
             the generated store. Defaults to 10,000 samples per shard.
+        latent_callback: Optional callable invoked with ``(dataset_index,
+            latents, item)`` immediately after encoding each sample. This can be
+            used by tests to inspect the generated latents without modifying the
+            storage pipeline.
     """
     total_samples = len(dataset)  # type: ignore[arg-type]
 
@@ -134,6 +139,9 @@ def create_latent_store(
                     resampled = resampled.unsqueeze(0).to(device)
 
                     latents = model.encoder(resampled).squeeze(0).contiguous().to("cpu")
+
+                    if latent_callback is not None:
+                        latent_callback(dataset_index, latents, item)
 
                     if len(item) < 2:
                         raise ValueError(
