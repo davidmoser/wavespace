@@ -2,114 +2,30 @@ import copy
 import math
 import os
 import random
-from collections.abc import Callable
 from dataclasses import asdict
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
 import torch.nn.functional as F
+import wandb
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
-import wandb
 
-from .configuration import Config
+from .configuration import Configuration
+from .dilated_tcn import DilatedTCN
 from .evaluate import (
     evaluate,
     soft_targets,
     _build_space_and_delta,
     _compute_batch_metrics,
 )
+from .local_context_mlp import LocalContextMLP
+from .token_transformer import TokenTransformer
 
 
-ModelFactory = Callable[[Config], Module]
-LoaderFactory = Callable[[Config], Optional[DataLoader]]
-ModelLike = Union[Module, ModelFactory]
-LoaderLike = Union[Optional[DataLoader], LoaderFactory]
-
-
-def _login_to_wandb() -> None:
-    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
-
-
-def _init_wandb_run(project: str, config: Optional[Dict[str, Any]] = None) -> None:
-    if config is None:
-        wandb.init(project=project)
-    else:
-        wandb.init(project=project, config=config)
-
-
-def _wandb_config_dict() -> Dict[str, Any]:
-    cfg = wandb.config
-    if hasattr(cfg, "as_dict"):
-        return cfg.as_dict()
-    return dict(cfg)
-
-
-def _log_to_wandb(metrics: Dict[str, Any], step: int) -> None:
-    if not wandb.run:
-        return
-    payload = {}
-    for key, value in metrics.items():
-        if value is None:
-            continue
-        if isinstance(value, Tensor):
-            payload[key] = value.detach().item()
-        elif isinstance(value, (float, int)):
-            payload[key] = float(value)
-        else:
-            payload[key] = value
-    if payload:
-        wandb.log(payload, step=step)
-
-
-def _update_wandb_summary(summary: Dict[str, Any]) -> None:
-    if not wandb.run:
-        return
-    for key, value in summary.items():
-        if value is None:
-            continue
-        wandb.run.summary[key] = value
-
-
-def _resolve_model(model_like: ModelLike, config: Config) -> Module:
-    if isinstance(model_like, Module):
-        return model_like
-    if callable(model_like):
-        model = model_like(config)
-        if not isinstance(model, Module):
-            raise TypeError("Model factory must return an instance of torch.nn.Module")
-        return model
-    raise TypeError("model must be an nn.Module or a callable returning one")
-
-
-def _resolve_loader(loader_like: LoaderLike, config: Config) -> Optional[DataLoader]:
-    if loader_like is None:
-        return None
-    if isinstance(loader_like, DataLoader):
-        return loader_like
-    if callable(loader_like):
-        loader = loader_like(config)
-        if loader is not None and not isinstance(loader, DataLoader):
-            raise TypeError("Loader factory must return a torch.utils.data.DataLoader or None")
-        return loader
-    raise TypeError("loader must be a DataLoader, callable, or None")
-
-
-def _resolve_device(config: Config) -> torch.device:
-    if config.device is not None:
-        return torch.device(config.device)
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-def train(
-        model: Module,
-        train_loader: DataLoader,
-        val_loader: Optional[DataLoader],
-        config: Config,
-) -> Dict[str, Optional[float]]:
+def train(config: Configuration) -> Dict[str, Optional[float]]:
     random.seed(config.seed)
     np.random.seed(config.seed)
     torch.manual_seed(config.seed)
@@ -118,7 +34,11 @@ def train(
     torch.backends.cudnn.benchmark = True
 
     device = _resolve_device(config)
+    model = _create_model(config)
     model.to(device)
+
+    train_loader = None #TODO: method for loaders from config
+    val_loader = None #TODO: method for loaders from config
 
     total_train_steps = len(train_loader) * config.epochs
     if total_train_steps == 0:
@@ -274,62 +194,67 @@ def train(
     return results
 
 
-def single_run(
-        config: Config,
-        model: ModelLike,
-        train_loader: LoaderLike,
-        val_loader: LoaderLike = None,
-        project: str = "pitch-detection-supervised",
-) -> Dict[str, Optional[float]]:
-    """Execute a single Weights & Biases run using the provided resources."""
-
-    _login_to_wandb()
-    _init_wandb_run(project=project, config=asdict(config))
-
-    try:
-        resolved_model = _resolve_model(model, config)
-        resolved_train_loader = _resolve_loader(train_loader, config)
-        if resolved_train_loader is None:
-            raise ValueError("train_loader must be provided")
-        resolved_val_loader = _resolve_loader(val_loader, config)
-        results = train(resolved_model, resolved_train_loader, resolved_val_loader, config)
-    finally:
-        if wandb.run:
-            wandb.finish()
-
-    return results
+def sweep_run():
+    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
+    wandb.init(project="pitch-detection")
+    cfg = wandb.config
+    train(Configuration(**cfg.as_dict()))
 
 
-def sweep_run(
-        model_factory: ModelFactory,
-        train_loader_factory: LoaderFactory,
-        val_loader_factory: Optional[LoaderFactory] = None,
-        base_config: Optional[Config] = None,
-        project: str = "pitch-detection-supervised",
-) -> Dict[str, Optional[float]]:
-    """Execute a sweep-configured Weights & Biases run."""
+def single_run(cfg: Configuration):
+    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
+    wandb.init(project="pitch-detection", config=asdict(cfg))
+    train(cfg)
 
-    _login_to_wandb()
-    init_config = asdict(base_config) if base_config is not None else None
-    _init_wandb_run(project=project, config=init_config)
 
-    cfg_dict = _wandb_config_dict()
-    if base_config is not None:
-        merged = dict(init_config or {})
-        merged.update(cfg_dict)
-        cfg_dict = merged
+def _create_model(config: Configuration) -> Module:
+    if config.model_class == "DilatedTCN":
+        return DilatedTCN(**config.model_config)
+    elif config.model_class == "LocalContextMLP":
+        return LocalContextMLP(**config.model_config)
+    elif config.model_class == "TokenTransformer":
+        return TokenTransformer(**config.model_config)
+    raise ValueError(f"Unknown model class {config.model_class}")
 
-    config = Config.from_dict(cfg_dict)
 
-    try:
-        resolved_model = _resolve_model(model_factory, config)
-        resolved_train_loader = _resolve_loader(train_loader_factory, config)
-        if resolved_train_loader is None:
-            raise ValueError("train_loader_factory must provide a DataLoader")
-        resolved_val_loader = _resolve_loader(val_loader_factory, config)
-        results = train(resolved_model, resolved_train_loader, resolved_val_loader, config)
-    finally:
-        if wandb.run:
-            wandb.finish()
+def _resolve_device(config: Configuration) -> torch.device:
+    if config.device is not None:
+        return torch.device(config.device)
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    return results
+
+def _login_to_wandb() -> None:
+    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
+
+
+def _init_wandb_run(project: str, config: Optional[Dict[str, Any]] = None) -> None:
+    if config is None:
+        wandb.init(project=project)
+    else:
+        wandb.init(project=project, config=config)
+
+
+def _log_to_wandb(metrics: Dict[str, Any], step: int) -> None:
+    if not wandb.run:
+        return
+    payload = {}
+    for key, value in metrics.items():
+        if value is None:
+            continue
+        if isinstance(value, Tensor):
+            payload[key] = value.detach().item()
+        elif isinstance(value, (float, int)):
+            payload[key] = float(value)
+        else:
+            payload[key] = value
+    if payload:
+        wandb.log(payload, step=step)
+
+
+def _update_wandb_summary(summary: Dict[str, Any]) -> None:
+    if not wandb.run:
+        return
+    for key, value in summary.items():
+        if value is None:
+            continue
+        wandb.run.summary[key] = value

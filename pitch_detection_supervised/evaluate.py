@@ -7,11 +7,11 @@ from torch import Tensor
 from torch.nn import Module
 from torch.utils.data import DataLoader
 
-from .configuration import Config
+from .configuration import Configuration
 
 
 @torch.no_grad()
-def evaluate(model: Module, data_loader: Optional[DataLoader], config: Config) -> Dict[str, float]:
+def evaluate(model: Module, data_loader: Optional[DataLoader], config: Configuration) -> Dict[str, float]:
     if data_loader is None:
         return {"loss": math.nan, "top1": math.nan, "within_k": math.nan, "mae_bins": math.nan}
 

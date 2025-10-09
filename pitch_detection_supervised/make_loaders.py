@@ -5,13 +5,13 @@ import torch
 from torch import Tensor
 from torch.utils.data import DataLoader
 
-from .configuration import Config
+from .configuration import Configuration
 
 
 def make_loaders(
         train_data: Optional[Iterable[Any]],
         val_data: Optional[Iterable[Any]],
-        config: Config,
+        config: Configuration,
 ) -> Tuple[Optional[DataLoader], Optional[DataLoader]]:
     collate_fn = _build_collate_fn(config)
 
@@ -84,7 +84,7 @@ def _normalize_time_steps(x: Tensor, eps: float = 1e-12) -> Tensor:
     return x / norm
 
 
-def _prepare_sample(sample: Any, config: Config) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
+def _prepare_sample(sample: Any, config: Configuration) -> Tuple[Tensor, Tensor, Optional[Tensor]]:
     seq_len = config.seq_len
 
     if isinstance(sample, dict):
@@ -137,7 +137,7 @@ def _prepare_sample(sample: Any, config: Config) -> Tuple[Tensor, Tensor, Option
     return x_tensor, freq_tensor, valid_tensor
 
 
-def _build_collate_fn(config: Config) -> Callable[[Sequence[Any]], Dict[str, Tensor]]:
+def _build_collate_fn(config: Configuration) -> Callable[[Sequence[Any]], Dict[str, Tensor]]:
     def collate(batch: Sequence[Any]) -> Dict[str, Tensor]:
         xs: List[Tensor] = []
         freqs: List[Tensor] = []

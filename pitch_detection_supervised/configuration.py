@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field, fields
-from typing import List, Optional
 import math
+from dataclasses import dataclass, field
+from typing import List, Optional
 
 
 @dataclass
-class Config:
+class Configuration:
     # saving
     save: bool = True
     save_file: str = "checkpoints/pitch_head.pt"
@@ -41,6 +41,10 @@ class Config:
     log_interval: int = 50
     eval_interval: int = 500
     within_bins: int = 1
+
+    # model definition
+    model_class: str = "DilatedTCN"
+    model_config: dict[str, ...] = None
 
     def centers_hz(self) -> List[float]:
         if self.centers_explicit is not None:
