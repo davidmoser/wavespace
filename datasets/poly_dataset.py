@@ -263,7 +263,9 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Label]]):
                 f"Empty compressed payload for key '{record.key}' in shard '{record.shard}'."
             )
 
-        decompressed = self._decompressor.decompress(compressed)
+        with self._decompressor.stream_reader(io.BytesIO(compressed)) as reader:
+            decompressed = reader.read()
+
         buffer = io.BytesIO(decompressed)
 
         header = buffer.read(tarfile.BLOCKSIZE)

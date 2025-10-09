@@ -1,3 +1,4 @@
+pytest
 lmdb
 encodec
 descript-audio-codec

@@ -12,13 +12,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
-import numpy as np
 import torch
 import zstandard
 from torch import Tensor
 from torch.utils.data import Dataset as TorchDataset
 
-DatasetItem = Tuple[Tensor, ...]
+from encodec import EncodecModel
+from encodec.utils import convert_audio
+
+DatasetItem = Tuple[Tensor, List[Tuple[float, float, float]]]
 
 _DEFAULT_SAMPLES_PER_SHARD = 10_000
 
@@ -49,9 +51,6 @@ def create_latent_store(
         dataset_sample_rate: Original sample rate of the dataset audio.
         device: Optional torch device for running the EnCodec encoder. Defaults
             to ``"cuda"`` when available otherwise ``"cpu"``.
-        encoder: Optional pre-configured ``EncodecModel`` instance. When not
-            provided the 24 kHz pretrained encoder shipped with the library is
-            used.
         target_bandwidth: Optional bandwidth value passed to the encoder via
             ``set_target_bandwidth``. Unit is kbit/s, [1.5, 3, 6, 12, 24]
         metadata: Optional mapping of metadata describing the dataset creation
@@ -61,25 +60,7 @@ def create_latent_store(
         samples_per_shard: Optional number of samples to include in each shard of
             the generated store. Defaults to 10,000 samples per shard.
     """
-
-    from encodec import EncodecModel
-    from encodec.utils import convert_audio
-
-    if not isinstance(dataset, TorchDataset):
-        raise TypeError("dataset must be an instance of torch.utils.data.Dataset.")
-
-    try:
-        total_samples = len(dataset)  # type: ignore[arg-type]
-    except TypeError as exc:  # pragma: no cover - defensive path
-        raise TypeError("dataset must implement __len__ for deterministic shuffling.") from exc
-
-    if total_samples <= 0:
-        raise ValueError("dataset must contain at least one sample")
-
-    if samples_per_shard <= 0:
-        raise ValueError("samples_per_shard must be a positive integer")
-
-    samples_per_shard = int(samples_per_shard)
+    total_samples = len(dataset)  # type: ignore[arg-type]
 
     path = Path(dataset_path)
     path.mkdir(parents=True, exist_ok=True)
@@ -232,6 +213,7 @@ def _write_shard_list(destination: Path, shard_paths: Sequence[str]) -> None:
         for shard in shard_paths:
             file.write(f"{shard}\n")
 
+
 def _read_tar_members(tar_path: Path) -> List[_MemberInfo]:
     members: List[_MemberInfo] = []
     with tarfile.open(tar_path, mode="r") as tar:
@@ -293,6 +275,8 @@ def _compress_tar_with_offsets(tar_path: Path, zst_path: Path, members: Sequence
         end = offsets_in_order[idx + 1]
         results.append({"member": name, "offset": start, "size": end - start})
     return results
+
+
 def _prepare_extras(extras: Sequence[Any]) -> Tuple[Any, ...]:
     converted: List[Any] = []
     for value in extras:
