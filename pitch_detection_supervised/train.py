@@ -1,18 +1,18 @@
 import copy
 import math
 import os
-import random
 from dataclasses import asdict
 from typing import Any, Dict, Optional
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import AdamW
+from torch.utils.data import DataLoader
 
+from datasets.poly_dataset import PolyphonicAsyncDatasetFromStore
 from .configuration import Configuration
 from .dilated_tcn import DilatedTCN
 from .evaluate import (
@@ -26,19 +26,14 @@ from .token_transformer import TokenTransformer
 
 
 def train(config: Configuration) -> Dict[str, Optional[float]]:
-    random.seed(config.seed)
-    np.random.seed(config.seed)
-    torch.manual_seed(config.seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(config.seed)
     torch.backends.cudnn.benchmark = True
 
     device = _resolve_device(config)
     model = _create_model(config)
     model.to(device)
 
-    train_loader = None #TODO: method for loaders from config
-    val_loader = None #TODO: method for loaders from config
+    train_loader = _load_dataset(config.train_dataset_path, config.batch_size, config.num_workers)
+    val_loader = _load_dataset(config.val_dataset_path, config.batch_size, config.num_workers)
 
     total_train_steps = len(train_loader) * config.epochs
     if total_train_steps == 0:
@@ -258,3 +253,9 @@ def _update_wandb_summary(summary: Dict[str, Any]) -> None:
         if value is None:
             continue
         wandb.run.summary[key] = value
+
+
+def _load_dataset(path: str, batch: int, num_workers:int) -> DataLoader:
+    dataset = PolyphonicAsyncDatasetFromStore(path)
+    loader = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers)
+    return loader

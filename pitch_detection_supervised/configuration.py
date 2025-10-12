@@ -27,7 +27,6 @@ class Configuration:
 
     # device and reproducibility
     device: Optional[str] = None  # None means "cuda if available else cpu"
-    seed: int = 1337
 
     # labels / bins
     n_classes: int = 128
@@ -42,9 +41,13 @@ class Configuration:
     eval_interval: int = 500
     within_bins: int = 1
 
-    # model definition
+    # model
     model_class: str = "DilatedTCN"
     model_config: dict[str, ...] = None
+
+    # dataset
+    train_dataset_path: str = None
+    val_dataset_path: str | None = None
 
     def centers_hz(self) -> List[float]:
         if self.centers_explicit is not None:
