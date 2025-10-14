@@ -1,0 +1,42 @@
+from pitch_detection_supervised.configuration import Configuration
+from pitch_detection_supervised.train import single_run
+
+single_run(Configuration(
+    # save
+    save=False,
+    save_file="checkpoints/pitch_detection_supervised/test.pt",
+    # data and loader
+    batch_size=16,
+    num_workers=1,
+    seq_len=150,
+    sample_duration=2.0,
+
+    # optimization
+    epochs=1,
+    total_steps_override=None,
+    lr=3e-4,
+    weight_decay=0.02,
+    max_grad_norm=1.0,
+    warmup_steps=10,
+
+    # device and reproducibility
+    device="cpu",  # None means "cuda if available else cpu"
+
+    # labels / bins
+    n_classes=128,
+    fmin_hz=100.0,
+    fmax_hz=10000.0,
+    time_frames=150,  # matches number of tokens
+
+    # evaluation / logging cadence
+    log_interval=50,
+    eval_interval=500,
+
+    # model
+    model_name="DilatedTCN",
+    model_config={},
+
+    # dataset
+    train_dataset_path="../resources/encodec_latents/poly_async_1",
+    val_dataset_path=None,
+))
