@@ -7,7 +7,7 @@ def label_to_tensor(
         events,  # list of (frequency_hz, onset_s, offset_s)
         frequency_bin_centers_hz,  # list/1D array-like
         duration_s: float,
-        frame_hop_s: float,
+        n_frames: int,
         device: torch.device = None,
         dtype=torch.float32,
 ):
@@ -15,8 +15,8 @@ def label_to_tensor(
     f_centers = torch.as_tensor(frequency_bin_centers_hz, dtype=dtype, device=device)
     assert f_centers.ndim == 1, "frequency_bin_centers_hz must be 1D"
     n_f = f_centers.numel()
-    n_frames = int(math.ceil(duration_s / frame_hop_s))
     y = torch.zeros(n_f, n_frames, dtype=dtype, device=device)
+    frame_hop_s = duration_s / n_frames
 
     # Helper: interpolate a scalar frequency onto neighboring freq bins (handles non-uniform centers)
     def freq_interp_weights(f):

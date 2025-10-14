@@ -2,10 +2,9 @@ import copy
 import math
 import os
 from dataclasses import asdict
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable, Tuple, List
 
 import torch
-import torch.nn.functional as F
 import wandb
 from torch import Tensor
 from torch.nn import Module
@@ -17,46 +16,44 @@ from .configuration import Configuration
 from .dilated_tcn import DilatedTCN
 from .evaluate import (
     evaluate,
-    soft_targets,
-    _build_space_and_delta,
     _compute_batch_metrics,
 )
 from .local_context_mlp import LocalContextMLP
 from .token_transformer import TokenTransformer
+from .utils import label_to_tensor
+
+MODEL_REGISTRY = {
+    "DilatedTCN": DilatedTCN,
+    "LocalContextMLP": LocalContextMLP,
+    "TokenTransformer": TokenTransformer,
+}
+
+
+def _create_model(config: Configuration) -> Module:
+    return MODEL_REGISTRY[config.model_name](**config.model_config)
 
 
 def train(config: Configuration) -> Dict[str, Optional[float]]:
     torch.backends.cudnn.benchmark = True
 
     device = _resolve_device(config)
+
+    centers_hz = config.centers_hz()
+    collate_fn = _create_collate_fn(centers_hz, config.sample_duration, config.time_frames, device)
+    train_loader = _load_dataset(config.train_dataset_path, config.batch_size, config.num_workers, collate_fn)
+    val_loader = None
+    if config.val_dataset_path:
+        val_loader = _load_dataset(config.val_dataset_path, config.batch_size, config.num_workers, collate_fn)
+
     model = _create_model(config)
     model.to(device)
-
-    train_loader = _load_dataset(config.train_dataset_path, config.batch_size, config.num_workers)
-    val_loader = _load_dataset(config.val_dataset_path, config.batch_size, config.num_workers)
-
-    total_train_steps = len(train_loader) * config.epochs
-    if total_train_steps == 0:
-        raise ValueError("Training loader must yield at least one batch per epoch")
-    total_steps = config.total_steps_override or total_train_steps
-
-    centers_hz = torch.tensor(config.centers_hz(), dtype=torch.float32, device=device)
-    space_centers, _ = _build_space_and_delta(centers_hz, config.log_bins)
-
+    criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
-    def lr_lambda(step: int) -> float:
-        if total_steps <= 0:
-            return 1.0
-        if config.warmup_steps > 0 and step < config.warmup_steps:
-            return float(step) / float(max(1, config.warmup_steps))
-        progress = (step - config.warmup_steps) / float(max(1, total_steps - config.warmup_steps))
-        progress = min(max(progress, 0.0), 1.0)
-        return 0.5 * (1.0 + math.cos(math.pi * progress))
-
+    lr_lambda = _create_lr(config.epochs, len(train_loader), config.warmup_steps, config.total_steps_override)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
-    global_step = 0
+    current_step = 1
     best_val_loss = float("inf")
     best_val_top1 = 0.0
     best_state: Optional[Dict[str, Tensor]] = None
@@ -66,18 +63,11 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
 
-            x = batch["x"].to(device, non_blocking=True)
-            freq = batch["freq_hz"].to(device, non_blocking=True)
-            mask = batch["valid_mask"].to(device, non_blocking=True).float()
-
-            logits = model(x)
-            target = soft_targets(freq, centers_hz, config.sigma_bins, config.log_bins)
-            log_q = F.log_softmax(logits, dim=-1)
-            frame_loss = -(target * log_q).sum(dim=-1)
-            mask_sum = mask.sum()
-            if mask_sum <= 0:
-                continue
-            loss = (frame_loss * mask).sum() / mask_sum
+            latents, targets = batch  # latents: B,L,T, expected: B,F,T
+            latents = latents.to(device)
+            targets = targets.to(device)
+            logits = model(latents)
+            loss = criterion(logits, targets)
 
             loss.backward()
             if config.max_grad_norm is not None and config.max_grad_norm > 0:
@@ -87,80 +77,61 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             scheduler.step()
 
             with torch.no_grad():
-                top1, within, mae = _compute_batch_metrics(
-                    logits, freq, space_centers, config.within_bins, config.log_bins, mask
-                )
+                _ = _compute_batch_metrics(logits, targets, centers_hz)  # TODO: metrics to track
 
             current_lr = optimizer.param_groups[0]["lr"]
             _log_to_wandb(
                 {
                     "train/loss": loss.item(),
-                    "train/top1": top1.item(),
-                    "train/within_k": within.item(),
-                    "train/mae_bins": mae.item(),
-                    "train/mask_fraction": float(mask_sum.item() / mask.numel()),
+                    # "train/top1": top1.item(), # TODO: metrics to log
                     "lr": current_lr,
                     "epoch": epoch,
                 },
-                step=global_step + 1,
+                step=current_step,
             )
 
-            if (global_step + 1) % config.log_interval == 0:
+            if current_step % config.log_interval == 0:
                 print(
-                    f"Epoch {epoch} Step {global_step + 1}: "
+                    f"Epoch {epoch} Step {current_step}: "
                     f"lr={current_lr:.6f} loss={loss.item():.4f} "
-                    f"top1={top1.item():.4f} within={within.item():.4f}"
                 )
 
-            should_eval = (global_step + 1) % config.eval_interval == 0
+            should_eval = current_step % config.eval_interval == 0
             if should_eval and val_loader is not None:
-                val_metrics = evaluate(model, val_loader, config)
+                val_metrics = evaluate(model, val_loader, centers_hz)
                 val_loss = val_metrics.get("loss", float("inf"))
-                val_top1 = val_metrics.get("top1", 0.0)
                 print(
-                    f"Validation @ Epoch {epoch} Step {global_step + 1}: "
-                    f"loss={val_loss:.4f} top1={val_top1:.4f} "
-                    f"within={val_metrics.get('within_k', 0.0):.4f} "
-                    f"mae={val_metrics.get('mae_bins', 0.0):.4f}"
+                    f"Validation @ Epoch {epoch} Step {current_step}: "
+                    f"loss={val_loss:.4f} "
                 )
                 _log_to_wandb(
                     {
                         "val/loss": val_metrics.get("loss"),
-                        "val/top1": val_metrics.get("top1"),
-                        "val/within_k": val_metrics.get("within_k"),
-                        "val/mae_bins": val_metrics.get("mae_bins"),
                         "epoch": epoch,
                     },
-                    step=global_step + 1,
+                    step=current_step + 1,
                 )
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
-                    best_val_top1 = val_top1
                     best_state = copy.deepcopy({k: v.detach().cpu() for k, v in model.state_dict().items()})
 
-            global_step += 1
+            current_step += 1
 
         if val_loader is not None:
-            val_metrics = evaluate(model, val_loader, config)
+            val_metrics = evaluate(model, val_loader, centers_hz)
             val_loss = val_metrics.get("loss", float("inf"))
-            val_top1 = val_metrics.get("top1", 0.0)
             print(
-                f"Validation @ Epoch {epoch} End: loss={val_loss:.4f} top1={val_top1:.4f} "
-                f"within={val_metrics.get('within_k', 0.0):.4f} mae={val_metrics.get('mae_bins', 0.0):.4f}"
+                f"Validation @ Epoch {epoch} End: loss={val_loss:.4f} "
             )
             _log_to_wandb(
                 {
                     "val/loss": val_metrics.get("loss"),
-                    "val/top1": val_metrics.get("top1"),
-                    "val/within_k": val_metrics.get("within_k"),
-                    "val/mae_bins": val_metrics.get("mae_bins"),
                     "epoch": epoch,
                 },
-                step=global_step,
+                step=current_step,
             )
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                best_val_top1 = val_top1
                 best_state = copy.deepcopy({k: v.detach().cpu() for k, v in model.state_dict().items()})
 
     if best_state is None and config.save:
@@ -191,25 +162,15 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
 def sweep_run():
     wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
-    wandb.init(project="pitch-detection")
+    wandb.init(project="pitch-detection-supervised")
     cfg = wandb.config
     train(Configuration(**cfg.as_dict()))
 
 
 def single_run(cfg: Configuration):
     wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
-    wandb.init(project="pitch-detection", config=asdict(cfg))
+    wandb.init(project="pitch-detection-supervised", config=asdict(cfg))
     train(cfg)
-
-
-def _create_model(config: Configuration) -> Module:
-    if config.model_class == "DilatedTCN":
-        return DilatedTCN(**config.model_config)
-    elif config.model_class == "LocalContextMLP":
-        return LocalContextMLP(**config.model_config)
-    elif config.model_class == "TokenTransformer":
-        return TokenTransformer(**config.model_config)
-    raise ValueError(f"Unknown model class {config.model_class}")
 
 
 def _resolve_device(config: Configuration) -> torch.device:
@@ -255,7 +216,35 @@ def _update_wandb_summary(summary: Dict[str, Any]) -> None:
         wandb.run.summary[key] = value
 
 
-def _load_dataset(path: str, batch: int, num_workers:int) -> DataLoader:
+def _load_dataset(path: str, batch: int, num_workers: int, collate_fn) -> DataLoader:
     dataset = PolyphonicAsyncDatasetFromStore(path)
-    loader = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers)
+    loader = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
     return loader
+
+
+def _create_collate_fn(centers_hz: List[float], duration: float, n_frames: int, device: torch.device) -> Callable[
+    [List], Tuple]:
+    def collate_fn(batch):
+        xs, ys = zip(*batch)
+        x = torch.stack(xs)
+        y_tensors = [label_to_tensor(label, centers_hz, duration, n_frames, device=device) for label in ys]
+        y = torch.stack(y_tensors)
+        return x, y
+
+    return collate_fn
+
+
+def _create_lr(epochs, steps_per_epoch, warmup_steps, total_steps_override=None):
+    total_train_steps = steps_per_epoch * epochs
+    total_steps = total_steps_override or total_train_steps
+
+    def lr_lambda(step: int) -> float:
+        if total_steps <= 0:
+            return 1.0
+        if warmup_steps > 0 and step < warmup_steps:
+            return float(step) / float(max(1, warmup_steps))
+        progress = (step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+        progress = min(max(progress, 0.0), 1.0)
+        return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+    return lr_lambda
