@@ -112,7 +112,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
                         "val/loss": val_metrics.get("loss"),
                         "epoch": epoch,
                     },
-                    step=current_step + 1,
+                    step=current_step,
                 )
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
