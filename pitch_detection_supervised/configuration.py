@@ -46,6 +46,7 @@ class Configuration:
     # dataset
     train_dataset_path: str = None
     val_dataset_path: str | None = None
+    split_train_set: Optional[float] = None
 
     def centers_hz(self) -> List[float]:
         log_min = math.log(self.fmin_hz)
