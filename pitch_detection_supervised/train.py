@@ -63,7 +63,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
 
-            latents, targets = batch  # latents: B,L,T, expected: B,F,T
+            latents, targets = batch  # latents: B,L,T, targets: B,F,T
             latents = latents.to(device)
             targets = targets.to(device)
             logits = model(latents)

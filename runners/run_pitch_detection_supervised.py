@@ -34,7 +34,7 @@ single_run(Configuration(
 
     # model
     model_name="DilatedTCN",
-    model_config={},
+    model_config={"seq_len": 150},
 
     # dataset
     train_dataset_path="../resources/encodec_latents/poly_async_1",

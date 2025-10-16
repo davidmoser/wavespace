@@ -14,18 +14,18 @@ class DilatedTCN(nn.Module):
     """Dilated temporal convolutional network for pitch estimation.
 
     Args:
-        n_classes: Number of pitch classes ``C``.
+        n_classes: Number of pitch classes ``F``.
         seq_len: Expected sequence length ``T``.
-        latent_dim: Dimensionality ``D`` of Encodec latents.
+        latent_dim: Dimensionality ``L`` of Encodec latents.
         hidden_dim: Hidden channel size ``H`` for internal convolutions.
         use_third_block: Whether to include the third dilated block.
         dropout: Dropout probability applied after each GELU activation.
 
     Input Tensor:
-        ``x`` of shape ``[B, T, D]`` containing the per-frame Encodec latents.
+        ``x`` of shape ``[B, L, T]`` containing the per-frame Encodec latents.
 
     Output Tensor:
-        Logits of shape ``[B, T, C]`` giving the per-step pitch class scores.
+        Logits of shape ``[B, F, T]`` giving the per-step pitch class scores.
     """
 
     def __init__(
@@ -40,14 +40,6 @@ class DilatedTCN(nn.Module):
     ) -> None:
         super().__init__()
 
-        if seq_len <= 0:
-            raise ValueError("seq_len must be a positive integer.")
-        if latent_dim <= 0:
-            raise ValueError("latent_dim must be a positive integer.")
-        if hidden_dim <= 0:
-            raise ValueError("hidden_dim must be a positive integer.")
-        if n_classes <= 0:
-            raise ValueError("n_classes must be a positive integer.")
         if not 0.0 <= dropout < 1.0:
             raise ValueError("dropout must be in the interval [0, 1).")
 
@@ -91,20 +83,11 @@ class DilatedTCN(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Run the dilated TCN over a sequence of latents.
-
-        Args:
-            x: Input tensor of shape ``[B, T, D]``.
-
-        Returns:
-            Tensor of shape ``[B, T, C]`` containing per-time-step class logits.
-        """
-
         if x.dim() != 3:
             raise ValueError(
                 f"DilatedTCN expected a 3D tensor with shape [B, T, D], but received {tuple(x.shape)}"
             )
-        batch_size, seq_len, latent_dim = x.shape
+        batch_size, latent_dim, seq_len = x.shape
         if seq_len != self.seq_len:
             raise ValueError(
                 f"Input sequence length {seq_len} does not match expected seq_len={self.seq_len}."
@@ -114,14 +97,12 @@ class DilatedTCN(nn.Module):
                 f"Input latent dimension {latent_dim} does not match expected latent_dim={self.latent_dim}."
             )
 
-        x = F.normalize(x, p=2.0, dim=-1, eps=1e-12)
-        x = x.transpose(1, 2)
+        x = F.normalize(x, p=2.0, dim=1, eps=1e-12)
         x = self.conv_blocks(x)
 
         logits = self.classifier(x)
-        logits = logits.transpose(1, 2)
 
-        expected_shape = (batch_size, self.seq_len, self.n_classes)
+        expected_shape = (batch_size, self.n_classes, self.seq_len)
         if logits.shape != expected_shape:
             raise RuntimeError(
                 "DilatedTCN produced unexpected output shape: "
