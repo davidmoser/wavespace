@@ -71,7 +71,9 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
             loss.backward()
             if config.max_grad_norm is not None and config.max_grad_norm > 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
+                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
+            else:
+                grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float("inf"))
             optimizer.step()
 
             scheduler.step()
@@ -83,6 +85,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             _log_to_wandb(
                 {
                     "train/loss": loss.item(),
+                    "train/grad_norm": grad_norm.item() if isinstance(grad_norm, Tensor) else float(grad_norm),
                     # "train/top1": top1.item(), # TODO: metrics to log
                     "lr": current_lr,
                     "epoch": epoch,
