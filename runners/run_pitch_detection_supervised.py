@@ -30,7 +30,7 @@ single_run(Configuration(
 
     # evaluation / logging cadence
     log_interval=50,
-    eval_interval=500,
+    eval_interval=10,
 
     # model
     model_name="DilatedTCN",
@@ -39,4 +39,5 @@ single_run(Configuration(
     # dataset
     train_dataset_path="../resources/encodec_latents/poly_async_1",
     val_dataset_path=None,
+    split_train_set=0.1
 ))
