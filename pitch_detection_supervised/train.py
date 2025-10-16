@@ -9,7 +9,7 @@ import wandb
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset, random_split
 
 from datasets.poly_dataset import PolyphonicAsyncDatasetFromStore
 from .configuration import Configuration
@@ -40,10 +40,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
     centers_hz = config.centers_hz()
     collate_fn = _create_collate_fn(centers_hz, config.sample_duration, config.time_frames, device)
-    train_loader = _load_dataset(config.train_dataset_path, config.batch_size, config.num_workers, collate_fn)
-    val_loader = None
-    if config.val_dataset_path:
-        val_loader = _load_dataset(config.val_dataset_path, config.batch_size, config.num_workers, collate_fn)
+    train_loader, val_loader = _load_loaders(config, collate_fn)
 
     model = _create_model(config)
     model.to(device)
@@ -219,10 +216,43 @@ def _update_wandb_summary(summary: Dict[str, Any]) -> None:
         wandb.run.summary[key] = value
 
 
-def _load_dataset(path: str, batch: int, num_workers: int, collate_fn) -> DataLoader:
-    dataset = PolyphonicAsyncDatasetFromStore(path)
-    loader = DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
-    return loader
+def _load_loaders(
+    config: Configuration,
+    collate_fn: Callable[[List], Tuple],
+) -> Tuple[DataLoader, Optional[DataLoader]]:
+    if config.split_train_set is not None and config.val_dataset_path:
+        raise ValueError("Cannot use a validation dataset path and split the training dataset simultaneously.")
+
+    train_dataset = _load_dataset(config.train_dataset_path)
+    train_loader: DataLoader
+    val_loader: Optional[DataLoader] = None
+    loader_args = [config.batch_size, config.num_workers, collate_fn]
+
+    if config.split_train_set is not None:
+        split_fraction = config.split_train_set
+        val_length = math.ceil(len(train_dataset) * split_fraction)
+        if val_length <= 0:
+            train_loader = _create_loader(train_dataset, *loader_args)
+            return train_loader, None
+        train_length = len(train_dataset) - val_length
+        train_subset, val_subset = random_split(train_dataset, [train_length, val_length])
+        train_loader = _create_loader(train_subset, *loader_args)
+        val_loader = _create_loader(val_subset, *loader_args)
+    else:
+        train_loader = _create_loader(train_dataset, *loader_args)
+        if config.val_dataset_path:
+            val_dataset = _load_dataset(config.val_dataset_path)
+            val_loader = _create_loader(val_dataset, *loader_args)
+
+    return train_loader, val_loader
+
+
+def _load_dataset(path: str) -> Dataset:
+    return PolyphonicAsyncDatasetFromStore(path)
+
+
+def _create_loader(dataset: Dataset, batch: int, num_workers: int, collate_fn) -> DataLoader:
+    return DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
 
 
 def _create_collate_fn(centers_hz: List[float], duration: float, n_frames: int, device: torch.device) -> Callable[
