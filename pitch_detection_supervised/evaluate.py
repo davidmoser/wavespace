@@ -26,7 +26,7 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
         loss = criterion(logits, targets)
 
         total_loss += loss.sum()
-        count += len(latents)  # TODO first dim of tensor
+        count += 1
 
         _ = _compute_batch_metrics(
             logits, targets, centers_hz
