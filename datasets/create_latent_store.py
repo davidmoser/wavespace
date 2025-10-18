@@ -20,7 +20,7 @@ from torch.utils.data import Dataset as TorchDataset
 from encodec import EncodecModel
 from encodec.utils import convert_audio
 
-DatasetItem = Tuple[Tensor, List[Tuple[float, float, float]]]
+DatasetItem = Tuple[Tensor, Tensor]
 
 _DEFAULT_SAMPLES_PER_SHARD = 10_000
 
@@ -113,11 +113,6 @@ def create_latent_store(
             shard_name = f"dataset-{shard_idx:0{shard_pad}d}"
             tar_path = path / f"{shard_name}.tar"
             zst_path = path / f"{shard_name}.tar.zst"
-            manifest_path = path / f"{shard_name}.jsonl"
-
-            manifest_records: List[Dict[str, Any]] = [
-                {"__meta__": {"version": "1.1", "schema": "key,path,events"}}
-            ]
             shard_samples: List[Dict[str, Any]] = []
 
             with tarfile.open(tar_path, mode="w", format=tarfile.PAX_FORMAT) as tar:
@@ -145,15 +140,22 @@ def create_latent_store(
 
                     if len(item) < 2:
                         raise ValueError(
-                            "Dataset items must provide a label as the second element.")
+                            "Dataset items must provide a label tensor as the second element.")
 
-                    events = item[1]
+                    label = item[1]
+                    if not isinstance(label, Tensor):
+                        raise TypeError("Dataset labels must be torch.Tensors.")
+                    label = label.detach().to(torch.float32).cpu()
 
                     key = f"{dataset_index:0{key_pad}d}"
                     filename = f"{key}.pt"
 
                     buffer = io.BytesIO()
-                    torch.save(latents, buffer)
+                    payload: Dict[str, Any] = {"latents": latents, "label": label}
+                    if len(item) > 2:
+                        payload["extras"] = _prepare_extras(item[2:])
+
+                    torch.save(payload, buffer)
                     data = buffer.getvalue()
 
                     tarinfo = tarfile.TarInfo(name=filename)
@@ -161,15 +163,6 @@ def create_latent_store(
                     tarinfo.mtime = int(time.time())
                     tar.addfile(tarinfo, io.BytesIO(data))
 
-                    record: Dict[str, Any] = {
-                        "key": key,
-                        "path": filename,
-                        "events": [
-                            {"frequency": freq, "start": start, "end": end}
-                            for freq, start, end in events
-                        ],
-                    }
-                    manifest_records.append(record)
                     shard_samples.append({
                         "key": key,
                         "path": filename,
@@ -178,10 +171,6 @@ def create_latent_store(
             members = _read_tar_members(tar_path)
             compressed_members = _compress_tar_with_offsets(tar_path, zst_path, members)
             os.remove(tar_path)
-
-            with manifest_path.open("w", encoding="utf-8") as manifest_file:
-                for record in manifest_records:
-                    manifest_file.write(json.dumps(record, separators=(",", ":")) + "\n")
 
             shard_paths.append(zst_path.name)
             if len(shard_samples) != len(compressed_members):

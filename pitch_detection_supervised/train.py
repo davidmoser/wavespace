@@ -2,7 +2,7 @@ import copy
 import math
 import os
 from dataclasses import asdict
-from typing import Dict, Optional, Callable, Tuple, List
+from typing import Dict, Optional, Tuple
 
 import torch
 import wandb
@@ -22,7 +22,7 @@ from .evaluate import (
 )
 from .local_context_mlp import LocalContextMLP
 from .token_transformer import TokenTransformer
-from .utils import label_to_tensor, create_warmup_cosine_lr, log_to_wandb, update_wandb_summary, resolve_device, \
+from .utils import create_warmup_cosine_lr, log_to_wandb, update_wandb_summary, resolve_device, \
     login_to_wandb
 
 PROJECT_NAME = "pitch-detection-supervised"
@@ -44,15 +44,14 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     device = resolve_device(config.device)
 
     centers_hz = config.centers_hz()
-    collate_fn = _create_collate_fn(centers_hz, config.sample_duration, config.time_frames, device)
     train_dataset, val_dataset = _load_datasets(config)
-    train_loader = _create_loader(train_dataset, config.batch_size, config.num_workers, collate_fn)
-    val_loader = _create_loader(val_dataset, config.batch_size, config.num_workers, collate_fn)
+    train_loader = _create_loader(train_dataset, config.batch_size, config.num_workers)
+    val_loader = _create_loader(val_dataset, config.batch_size, config.num_workers)
 
     model = _create_model(config)
     model.to(device)
     model.train()
-    criterion = torch.nn.BCEWithLogitsLoss()
+    criterion = torch.nn.L1Loss()
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
     lr_lambda = create_warmup_cosine_lr(config.epochs, len(train_loader), config.warmup_steps,
@@ -61,15 +60,9 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
     train_log_samples = _prepare_logging_samples(
         train_dataset,
-        centers_hz,
-        config.sample_duration,
-        config.time_frames,
     )
     val_log_samples = _prepare_logging_samples(
         val_dataset,
-        centers_hz,
-        config.sample_duration,
-        config.time_frames,
     )
 
     current_step = 1
@@ -205,20 +198,7 @@ def _create_loader(
         dataset: Optional[Dataset],
         batch: int,
         num_workers: int,
-        collate_fn,
 ) -> DataLoader | None:
     if dataset is None:
         return None
-    return DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
-
-
-def _create_collate_fn(centers_hz: List[float], duration: float, n_frames: int, device: torch.device) -> Callable[
-    [List], Tuple]:
-    def collate_fn(batch):
-        xs, ys = zip(*batch)
-        x = torch.stack(xs)
-        y_tensors = [label_to_tensor(label, centers_hz, duration, n_frames, device=device) for label in ys]
-        y = torch.stack(y_tensors)
-        return x, y
-
-    return collate_fn
+    return DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers)

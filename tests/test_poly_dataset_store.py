@@ -28,7 +28,7 @@ def test_polyphonic_dataset_store_roundtrip(tmp_path: Path) -> None:
 
     captured_latents: dict[int, torch.Tensor] = {}
 
-    def capture_latents(index: int, latents: torch.Tensor, item: tuple[torch.Tensor, list]) -> None:
+    def capture_latents(index: int, latents: torch.Tensor, item: tuple[torch.Tensor, torch.Tensor]) -> None:
         captured_latents[index] = latents.clone()
 
     create_latent_store(
@@ -44,9 +44,8 @@ def test_polyphonic_dataset_store_roundtrip(tmp_path: Path) -> None:
     assert len(store) == len(dataset)
 
     for index in range(len(dataset)):
-        _, expected_labels = dataset[index]
-        stored_latents, stored_labels = store[index]
+        _, expected_label = dataset[index]
+        stored_latents, stored_label = store[index]
 
         torch.testing.assert_close(stored_latents, captured_latents[index])
-
-        assert stored_labels == expected_labels
+        torch.testing.assert_close(stored_label, expected_label)
