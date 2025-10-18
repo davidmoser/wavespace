@@ -9,7 +9,7 @@ from torch import Tensor
 from torch.nn import Module
 from torch.utils.data import DataLoader, Dataset
 
-from .utils import label_to_tensor, log_to_wandb
+from .utils import log_to_wandb
 
 LOG_SAMPLE_SEED = 2024
 LOG_SAMPLE_COUNT = 5
@@ -28,7 +28,7 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
         return {"loss": math.nan}
 
     device = next(model.parameters()).device
-    criterion = torch.nn.BCEWithLogitsLoss()
+    criterion = torch.nn.L1Loss()
 
     total_loss = torch.zeros(1, device=device)
 
@@ -36,14 +36,17 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
     for batch in data_loader:
         latents, targets = batch
 
-        logits = model(latents)
-        loss = criterion(logits, targets)
+        latents = latents.to(device)
+        targets = targets.to(device)
+
+        predictions = model(latents)
+        loss = criterion(predictions, targets)
 
         total_loss += loss.sum()
         count += 1
 
         _ = _compute_batch_metrics(
-            logits, targets, centers_hz
+            predictions, targets, centers_hz
         )
 
     metrics = {
@@ -62,9 +65,6 @@ def _compute_batch_metrics(
 
 def _prepare_logging_samples(
         dataset: Optional[Dataset],
-        centers_hz: List[float],
-        duration: float,
-        n_frames: int,
         seed: int = LOG_SAMPLE_SEED,
         count: int = LOG_SAMPLE_COUNT,
 ) -> List[_LoggingSample]:
@@ -82,9 +82,9 @@ def _prepare_logging_samples(
 
     samples: List[_LoggingSample] = []
     for idx in indices:
-        latents, labels = dataset[idx]
+        latents, label = dataset[idx]
         latents_tensor = latents.detach().to(dtype=torch.float32).cpu()
-        target_tensor = label_to_tensor(labels, centers_hz, duration, n_frames, device=torch.device("cpu"))
+        target_tensor = label.detach().to(dtype=torch.float32).cpu()
         samples.append(_LoggingSample(index=idx, latents=latents_tensor, target=target_tensor))
     return samples
 

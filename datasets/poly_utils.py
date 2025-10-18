@@ -100,7 +100,7 @@ class Spec:
     detune_cents: float = field(default_factory=lambda: RNG.uniform(0.0, 8.0))
     A1: float = field(default_factory=lambda: RNG.uniform(0.0, 1.0))
     A2: float = field(default_factory=lambda: RNG.uniform(0.0, 1.0))
-    B: float = field(default_factory=lambda: RNG.uniform(0.5, 1.0))
+    B: float = field(default_factory=lambda: RNG.uniform(0.1, 1.0))
     C1: float = field(default_factory=lambda: RNG.uniform(0.0, 1.0))
     C2: float = field(default_factory=lambda: RNG.uniform(0.0, 1.0))
     lpf_hz: Optional[float] = field(default_factory=lambda: _optional_uniform(1_500, 12_000))
@@ -109,7 +109,12 @@ class Spec:
     reverb_room: float = field(default_factory=lambda: RNG.uniform(0.1, 0.6))
 
 
-def render_sample(f0: float, sr: float, dur: float, spec: Spec) -> np.ndarray:
+def render_sample(
+        f0: float,
+        sr: float,
+        dur: float,
+        spec: Spec,
+) -> Tuple[np.ndarray, np.ndarray]:
     n = int(dur * sr)
     tone = additive_harmonic(
         f0=f0,
@@ -129,7 +134,7 @@ def render_sample(f0: float, sr: float, dur: float, spec: Spec) -> np.ndarray:
         y = apply_reverb_offline(y, sr, wet=spec.reverb_wet, room_size=spec.reverb_room)
     peak = np.max(np.abs(y)) + 1e-12
     y = (0.95 * y / peak).astype(np.float32)
-    return y
+    return y, env
 
 
 def render_poly_interval_freq(freqs_hz: Sequence[float], sr: float, dur: float) -> Tuple[np.ndarray, List[float]]:
@@ -139,7 +144,7 @@ def render_poly_interval_freq(freqs_hz: Sequence[float], sr: float, dur: float) 
         f0_float = float(f0)
         f0s.append(f0_float)
         spec = Spec()
-        note = render_sample(f0_float, sr, dur, spec)
+        note, _ = render_sample(f0_float, sr, dur, spec)
         mix += note
     peak = np.max(np.abs(mix)) + 1e-12
     mix = (0.95 * mix / peak).astype(np.float32)
@@ -151,13 +156,14 @@ def render_poly_interval_async_freq(
     sr: float,
     dur: float,
     min_note_dur: float = 0.12,
-) -> Tuple[np.ndarray, List[float], List[float], List[float]]:
+) -> Tuple[np.ndarray, List[float], List[float], List[float], List[np.ndarray]]:
     n_total = int(dur * sr)
     mix = np.zeros(n_total, dtype=np.float32)
 
     f0s: List[float] = []
     onsets_s: List[float] = []
     durs_s: List[float] = []
+    envelopes: List[np.ndarray] = []
 
     for f0 in freqs_hz:
         f0_float = float(f0)
@@ -168,7 +174,7 @@ def render_poly_interval_async_freq(
         note_dur = RNG.uniform(min_note_dur, max_dur)
 
         spec = Spec()
-        y = render_sample(f0_float, sr, note_dur, spec)
+        y, env = render_sample(f0_float, sr, note_dur, spec)
 
         start = int(onset_s * sr)
         end = min(start + len(y), n_total)
@@ -176,7 +182,8 @@ def render_poly_interval_async_freq(
 
         onsets_s.append(onset_s)
         durs_s.append(note_dur)
+        envelopes.append(env[: end - start])
 
     peak = float(np.max(np.abs(mix)) + 1e-12)
     mix = (0.95 * mix / peak).astype(np.float32)
-    return mix, f0s, onsets_s, durs_s
+    return mix, f0s, onsets_s, durs_s, envelopes

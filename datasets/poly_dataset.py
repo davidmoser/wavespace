@@ -7,7 +7,7 @@ import json
 import math
 import tarfile
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple, Union
+from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
@@ -16,9 +16,6 @@ from torch.utils.data import Dataset
 import zstandard
 
 from datasets import poly_utils
-
-
-Label = List[Tuple[float, float, float]]
 
 
 def _validate_freq_range(freq_range: Sequence[float]) -> Tuple[float, float]:
@@ -37,7 +34,7 @@ def _validate_freq_range(freq_range: Sequence[float]) -> Tuple[float, float]:
     return min_freq, max_freq
 
 
-class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Label]]):
+class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
     """Dataset that renders asynchronous polyphonic mixtures on the fly."""
 
     def __init__(
@@ -49,6 +46,9 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Label]]):
         sr: int,
         duration: float,
         min_note_duration: float = 0.12,
+        label_sample_rate: float = 75.0,
+        label_centers_hz: Optional[Sequence[float]] = None,
+        label_bins: int = 128,
         seed: Optional[int] = None,
     ) -> None:
         if n_samples <= 0:
@@ -62,6 +62,11 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Label]]):
         if min_note_duration <= 0.0:
             raise ValueError("min_note_duration must be positive")
 
+        if label_sample_rate <= 0.0:
+            raise ValueError("label_sample_rate must be positive")
+        if label_bins <= 0:
+            raise ValueError("label_bins must be positive")
+
         self.n_samples = int(n_samples)
         self.max_polyphony = int(max_polyphony)
         self.sample_rate = int(sr)
@@ -69,32 +74,42 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Label]]):
         self.min_note_duration = float(min_note_duration)
         self.freq_min, self.freq_max = _validate_freq_range(freq_range)
 
+        self.label_sample_rate = float(label_sample_rate)
+        self.label_frames = max(1, int(round(self.duration * self.label_sample_rate)))
+
+        if label_centers_hz is None:
+            centers = np.geomspace(self.freq_min, self.freq_max, num=int(label_bins)).astype(np.float32)
+        else:
+            centers = np.asarray(list(label_centers_hz), dtype=np.float32)
+            if centers.ndim != 1 or centers.size == 0:
+                raise ValueError("label_centers_hz must be a non-empty 1D sequence")
+            centers = np.sort(centers)
+        self._label_centers = centers
+        self._label_bins = int(centers.shape[0])
+
         self._base_seed = seed if seed is not None else 1234
         self._sample_seeds = [self._base_seed + i for i in range(self.n_samples)]
 
     def __len__(self) -> int:
         return self.n_samples
 
-    def __getitem__(self, index: int) -> Tuple[Tensor, Label]:
+    def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
         if index < 0 or index >= self.n_samples:
             raise IndexError("index out of range")
 
         seed = self._sample_seeds[index]
-        waveform, f0s, onsets, durs = self._render_sample(seed)
+        waveform, notes = self._render_sample(seed)
 
         audio = torch.from_numpy(waveform).to(dtype=torch.float32)
         audio = audio.unsqueeze(0)
 
-        labels: Label = [
-            (float(freq), float(onset), float(onset + dur))
-            for freq, onset, dur in zip(f0s, onsets, durs)
-        ]
+        label = self._build_label_tensor(notes)
 
-        return audio, labels
+        return audio, label
 
     def _render_sample(
         self, seed: int
-    ) -> Tuple[np.ndarray, Sequence[float], Sequence[float], Sequence[float]]:
+    ) -> Tuple[np.ndarray, List[Tuple[float, float, float, np.ndarray]]]:
         rng_state = poly_utils.RNG.getstate()
         np_rng = poly_utils.NP_RNG
         try:
@@ -106,7 +121,7 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Label]]):
                 poly_utils.log_uniform(self.freq_min, self.freq_max)
                 for _ in range(k)
             ]
-            waveform, f0s, onsets, durs = poly_utils.render_poly_interval_async_freq(
+            waveform, f0s, onsets, durs, envelopes = poly_utils.render_poly_interval_async_freq(
                 freqs,
                 self.sample_rate,
                 self.duration,
@@ -116,10 +131,81 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Label]]):
             poly_utils.RNG.setstate(rng_state)
             poly_utils.NP_RNG = np_rng
 
-        return waveform, f0s, onsets, durs
+        notes = [
+            (float(freq), float(onset), float(dur), env.astype(np.float32))
+            for freq, onset, dur, env in zip(f0s, onsets, durs, envelopes)
+        ]
+
+        return waveform, notes
+
+    def _build_label_tensor(
+        self, notes: Sequence[Tuple[float, float, float, np.ndarray]]
+    ) -> Tensor:
+        label = torch.zeros(self._label_bins, self.label_frames, dtype=torch.float32)
+
+        for freq, onset, duration, envelope in notes:
+            weights = self._frequency_weights(freq)
+            if not weights:
+                continue
+
+            actual_duration = min(duration, envelope.shape[0] / float(self.sample_rate))
+            sampled_envelope = self._sample_envelope(envelope, actual_duration)
+            if sampled_envelope.size == 0:
+                continue
+
+            onset_frame = int(math.floor(onset * self.label_sample_rate))
+            for frame_offset, amplitude in enumerate(sampled_envelope):
+                frame_idx = onset_frame + frame_offset
+                if frame_idx < 0 or frame_idx >= self.label_frames:
+                    continue
+
+                intensity = float(amplitude) ** 2
+                if intensity <= 0.0:
+                    continue
+
+                for bin_index, weight in weights:
+                    label[bin_index, frame_idx] += intensity * weight
+
+        return label
+
+    def _sample_envelope(self, envelope: np.ndarray, duration: float) -> np.ndarray:
+        n_frames = int(math.ceil(duration * self.label_sample_rate))
+        if n_frames <= 0:
+            return np.empty(0, dtype=np.float32)
+
+        times = np.arange(envelope.shape[0], dtype=np.float32) / float(self.sample_rate)
+        target_times = np.arange(n_frames, dtype=np.float32) / float(self.label_sample_rate)
+        sampled = np.interp(
+            target_times,
+            times,
+            envelope.astype(np.float32),
+            left=0.0,
+            right=0.0,
+        )
+        return sampled.astype(np.float32)
+
+    def _frequency_weights(self, freq_hz: float) -> List[Tuple[int, float]]:
+        centers = self._label_centers
+        if freq_hz <= centers[0]:
+            return [(0, 1.0)]
+        if freq_hz >= centers[-1]:
+            return [(self._label_bins - 1, 1.0)]
+
+        idx = int(np.searchsorted(centers, freq_hz, side="left"))
+        if idx == 0:
+            return [(0, 1.0)]
+        if idx >= self._label_bins:
+            return [(self._label_bins - 1, 1.0)]
+
+        left = centers[idx - 1]
+        right = centers[idx]
+        denom = float(max(right - left, np.finfo(np.float32).eps))
+        alpha = float((freq_hz - left) / denom)
+        alpha = min(max(alpha, 0.0), 1.0)
+        return [(idx - 1, 1.0 - alpha), (idx, alpha)]
 
 
-class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Label]]):
+class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Tensor]]):
     """Dataset backed by artifacts produced with :func:`create_latent_store`.
 
     The dataset eagerly loads the manifest labels and index information into
@@ -149,22 +235,17 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Label]]):
         if not self._records:
             raise ValueError("The dataset index is empty.")
 
-        self._labels = self._load_labels(self._records)
-
     def __len__(self) -> int:
         return len(self._records)
 
-    def __getitem__(self, index: int) -> Tuple[Tensor, Label]:
+    def __getitem__(self, index: int) -> Tuple[Tensor, Tensor]:
         if index < 0 or index >= len(self._records):
             raise IndexError("index out of range")
 
         record = self._records[index]
-        latents = self._load_latents(record)
-        labels = self._labels.get(record.key)
-        if labels is None:
-            raise KeyError(f"Missing labels for key '{record.key}'.")
+        latents, label = self._load_payload(record)
 
-        return latents, labels
+        return latents, label
 
     class _IndexRecord:
         __slots__ = ("key", "shard", "member", "offset", "size")
@@ -209,47 +290,7 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Label]]):
 
         return records
 
-    def _load_labels(
-        self,
-        records: Sequence["PolyphonicAsyncDatasetFromStore._IndexRecord"],
-    ) -> Dict[str, Label]:
-        labels: Dict[str, Label] = {}
-        shards = {record.shard for record in records}
-
-        for shard in shards:
-            manifest_path = self._root / shard.replace(".tar.zst", ".jsonl")
-            if not manifest_path.is_file():
-                raise FileNotFoundError(f"Missing manifest for shard '{shard}'.")
-
-            with manifest_path.open("r", encoding="utf-8") as manifest:
-                for line_number, line in enumerate(manifest):
-                    line = line.strip()
-                    if not line:
-                        continue
-                    record = json.loads(line)
-                    if "__meta__" in record:
-                        continue
-
-                    key = str(record.get("key"))
-                    if not key:
-                        raise ValueError(
-                            f"Manifest '{manifest_path}' contains an entry without a key "
-                            f"(line {line_number + 1})."
-                        )
-
-                    events = record.get("events", [])
-                    labels[key] = [
-                        (
-                            float(event["frequency"]),
-                            float(event["start"]),
-                            float(event["end"]),
-                        )
-                        for event in events
-                    ]
-
-        return labels
-
-    def _load_latents(self, record: "PolyphonicAsyncDatasetFromStore._IndexRecord") -> Tensor:
+    def _load_payload(self, record: "PolyphonicAsyncDatasetFromStore._IndexRecord") -> Tuple[Tensor, Tensor]:
         shard_path = self._root / record.shard
         if not shard_path.is_file():
             raise FileNotFoundError(f"Shard not found: {shard_path}")
@@ -288,10 +329,22 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Label]]):
             )
 
         file_data = payload[:data_size]
-        tensor = torch.load(io.BytesIO(file_data), map_location=self._map_location)
-        if not isinstance(tensor, Tensor):
+        payload = torch.load(io.BytesIO(file_data), map_location=self._map_location)
+        if not isinstance(payload, dict):
             raise TypeError(
-                f"Expected a torch.Tensor for key '{record.key}', got {type(tensor)!r}."
+                f"Expected a mapping payload for key '{record.key}', got {type(payload)!r}."
             )
 
-        return tensor
+        latents = payload.get("latents")
+        label = payload.get("label")
+
+        if not isinstance(latents, Tensor):
+            raise TypeError(
+                f"Expected 'latents' tensor for key '{record.key}', got {type(latents)!r}."
+            )
+        if not isinstance(label, Tensor):
+            raise TypeError(
+                f"Expected 'label' tensor for key '{record.key}', got {type(label)!r}."
+            )
+
+        return latents, label

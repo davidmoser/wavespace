@@ -39,7 +39,7 @@ def build_dataset_single(
         for i in range(n_samples):
             f0 = log_uniform(*freq_range)
             spec = Spec()
-            y = render_sample(f0, sr, dur, spec)
+            y, _ = render_sample(f0, sr, dur, spec)
             fname = f"{i:05d}_f{int(round(f0))}Hz.wav"
             sf.write(out / fname, y, sr, subtype="FLOAT")
             w.writerow([
@@ -119,7 +119,7 @@ def build_dataset_poly_async(
             k = RNG.randint(1, max_polyphony)
             freqs = [log_uniform(*freq_range) for _ in range(k)]
 
-            y, f0s, onsets_s, durs_s = render_poly_interval_async_freq(freqs, sr, duration)
+            y, f0s, onsets_s, durs_s, _ = render_poly_interval_async_freq(freqs, sr, duration)
 
             fname = f"{i:04d}_k{k}.wav"
             sf.write(out / fname, y, sr, subtype="FLOAT")
