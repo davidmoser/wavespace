@@ -39,7 +39,8 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
         latents = latents.to(device)
         targets = targets.to(device)
 
-        predictions = model(latents)
+        logits = model(latents)
+        predictions = torch.sigmoid(logits)
         loss = criterion(predictions, targets)
 
         total_loss += loss.sum()

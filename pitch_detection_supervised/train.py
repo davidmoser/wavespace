@@ -79,7 +79,8 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             latents = latents.to(device)
             targets = targets.to(device)
             logits = model(latents)
-            loss = criterion(logits, targets)
+            predictions = torch.sigmoid(logits)
+            loss = criterion(predictions, targets)
 
             loss.backward()
             if config.max_grad_norm is not None and config.max_grad_norm > 0:
@@ -91,7 +92,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             scheduler.step()
 
             with torch.no_grad():
-                _ = _compute_batch_metrics(logits, targets, centers_hz)  # TODO: metrics to track
+                _ = _compute_batch_metrics(predictions, targets, centers_hz)  # TODO: metrics to track
 
             current_lr = optimizer.param_groups[0]["lr"]
             log_to_wandb(

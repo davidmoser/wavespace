@@ -166,6 +166,8 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
                 for bin_index, weight in weights:
                     label[bin_index, frame_idx] += intensity * weight
 
+        label.clamp_(max=1.0)
+
         return label
 
     def _sample_envelope(self, envelope: np.ndarray, duration: float) -> np.ndarray:
