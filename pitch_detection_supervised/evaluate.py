@@ -6,7 +6,7 @@ import torch
 import numpy as np
 import wandb
 from torch import Tensor
-from torch.nn import Module
+from torch.nn import Module, BCEWithLogitsLoss
 from torch.utils.data import DataLoader, Dataset
 
 from .utils import log_to_wandb
@@ -28,7 +28,7 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
         return {"loss": math.nan}
 
     device = next(model.parameters()).device
-    criterion = torch.nn.L1Loss()
+    criterion = BCEWithLogitsLoss()
 
     total_loss = torch.zeros(1, device=device)
 
@@ -40,14 +40,13 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
         targets = targets.to(device)
 
         logits = model(latents)
-        predictions = torch.sigmoid(logits)
-        loss = criterion(predictions, targets)
+        loss = criterion(logits, targets)
 
         total_loss += loss.sum()
         count += 1
 
         _ = _compute_batch_metrics(
-            predictions, targets, centers_hz
+            logits, targets, centers_hz
         )
 
     metrics = {

@@ -7,7 +7,7 @@ from typing import Dict, Optional, Tuple
 import torch
 import wandb
 from torch import Tensor
-from torch.nn import Module
+from torch.nn import Module, BCEWithLogitsLoss
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
@@ -51,7 +51,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     model = _create_model(config)
     model.to(device)
     model.train()
-    criterion = torch.nn.L1Loss()
+    criterion = BCEWithLogitsLoss()
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
     lr_lambda = create_warmup_cosine_lr(config.epochs, len(train_loader), config.warmup_steps,
@@ -79,8 +79,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             latents = latents.to(device)
             targets = targets.to(device)
             logits = model(latents)
-            predictions = torch.sigmoid(logits)
-            loss = criterion(predictions, targets)
+            loss = criterion(logits, targets)
 
             loss.backward()
             if config.max_grad_norm is not None and config.max_grad_norm > 0:
@@ -92,7 +91,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             scheduler.step()
 
             with torch.no_grad():
-                _ = _compute_batch_metrics(predictions, targets, centers_hz)  # TODO: metrics to track
+                _ = _compute_batch_metrics(logits, targets, centers_hz)  # TODO: metrics to track
 
             current_lr = optimizer.param_groups[0]["lr"]
             log_to_wandb(
