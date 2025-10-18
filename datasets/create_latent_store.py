@@ -282,11 +282,3 @@ def _prepare_extras(extras: Sequence[Any]) -> Tuple[Any, ...]:
         else:
             converted.append(value)
     return tuple(converted)
-
-
-def _main() -> None:
-    raise SystemExit("This module provides the 'create_latent_store' function. Import and call it directly.")
-
-
-if __name__ == "__main__":
-    _main()
