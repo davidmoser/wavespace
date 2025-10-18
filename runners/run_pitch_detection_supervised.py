@@ -12,7 +12,7 @@ single_run(Configuration(
     sample_duration=2.0,
 
     # optimization
-    epochs=1,
+    epochs=2,
     total_steps_override=None,
     lr=3e-4,
     weight_decay=0.02,
@@ -29,7 +29,6 @@ single_run(Configuration(
     time_frames=150,  # matches number of tokens
 
     # evaluation / logging cadence
-    log_interval=50,
     eval_interval=10,
 
     # model

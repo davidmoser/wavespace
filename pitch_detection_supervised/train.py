@@ -78,6 +78,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     best_state: Optional[Dict[str, Tensor]] = None
 
     for epoch in range(1, config.epochs + 1):
+        print(f"Epoch {epoch}")
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
 
@@ -110,12 +111,6 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
                 },
                 step=current_step,
             )
-
-            if current_step % config.log_interval == 0:
-                print(
-                    f"Epoch {epoch} Step {current_step}: "
-                    f"lr={current_lr:.6f} loss={loss.item():.4f} "
-                )
 
             should_eval = current_step % config.eval_interval == 0
             if should_eval and val_loader is not None:

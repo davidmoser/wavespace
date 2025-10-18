@@ -35,8 +35,7 @@ class Configuration:
     fmax_hz: float = 1760.0
     time_frames: int = 75
 
-    # evaluation / logging cadence
-    log_interval: int = 50
+    # evaluation cadence
     eval_interval: int = 500
 
     # model
