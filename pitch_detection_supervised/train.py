@@ -17,6 +17,8 @@ from .dilated_tcn import DilatedTCN
 from .evaluate import (
     evaluate,
     _compute_batch_metrics,
+    _prepare_logging_samples,
+    _log_evaluation_samples,
 )
 from .local_context_mlp import LocalContextMLP
 from .token_transformer import TokenTransformer
@@ -49,6 +51,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
     model = _create_model(config)
     model.to(device)
+    model.train()
     criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
@@ -56,13 +59,25 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
                                         config.total_steps_override)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
+    train_log_samples = _prepare_logging_samples(
+        train_dataset,
+        centers_hz,
+        config.sample_duration,
+        config.time_frames,
+    )
+    val_log_samples = _prepare_logging_samples(
+        val_dataset,
+        centers_hz,
+        config.sample_duration,
+        config.time_frames,
+    )
+
     current_step = 1
     best_val_loss = float("inf")
     best_val_top1 = 0.0
     best_state: Optional[Dict[str, Tensor]] = None
 
     for epoch in range(1, config.epochs + 1):
-        model.train()
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
 
@@ -104,6 +119,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
             should_eval = current_step % config.eval_interval == 0
             if should_eval and val_loader is not None:
+                model.eval()
                 val_metrics = evaluate(model, val_loader, centers_hz)
                 val_loss = val_metrics.get("loss", float("inf"))
                 print(
@@ -117,28 +133,19 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
                     },
                     step=current_step,
                 )
+                _log_evaluation_samples(
+                    model,
+                    device,
+                    current_step,
+                    train_log_samples,
+                    val_log_samples,
+                )
+                model.train()
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     best_state = copy.deepcopy({k: v.detach().cpu() for k, v in model.state_dict().items()})
 
             current_step += 1
-
-        if val_loader is not None:
-            val_metrics = evaluate(model, val_loader, centers_hz)
-            val_loss = val_metrics.get("loss", float("inf"))
-            print(
-                f"Validation @ Epoch {epoch} End: loss={val_loss:.4f} "
-            )
-            log_to_wandb(
-                {
-                    "val/loss": val_metrics.get("loss"),
-                    "epoch": epoch,
-                },
-                step=current_step,
-            )
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                best_state = copy.deepcopy({k: v.detach().cpu() for k, v in model.state_dict().items()})
 
     if best_state is None and config.save:
         best_state = copy.deepcopy({k: v.detach().cpu() for k, v in model.state_dict().items()})
@@ -199,8 +206,14 @@ def _load_dataset(path: str) -> Dataset:
     return PolyphonicAsyncDatasetFromStore(path)
 
 
-def _create_loader(dataset: Dataset, batch: int, num_workers: int, collate_fn) -> DataLoader | None:
-    if not dataset: return None
+def _create_loader(
+        dataset: Optional[Dataset],
+        batch: int,
+        num_workers: int,
+        collate_fn,
+) -> DataLoader | None:
+    if dataset is None:
+        return None
     return DataLoader(dataset, batch_size=batch, shuffle=False, num_workers=num_workers, collate_fn=collate_fn)
 
 
