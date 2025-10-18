@@ -143,6 +143,6 @@ def _create_piano_roll_panel(target: np.ndarray, prediction: np.ndarray) -> np.n
         target_img = target_img[:min_rows, :min_cols]
         prediction_img = prediction_img[:min_rows, :min_cols]
 
-    separator = np.zeros((1, target_img.shape[1]), dtype=np.float32)
+    separator = np.ones((1, target_img.shape[1]), dtype=np.float32)
     panel = np.concatenate((target_img, separator, prediction_img), axis=0)
     return panel

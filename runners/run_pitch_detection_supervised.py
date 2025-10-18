@@ -12,9 +12,9 @@ single_run(Configuration(
     sample_duration=2.0,
 
     # optimization
-    epochs=2,
+    epochs=10,
     total_steps_override=None,
-    lr=3e-4,
+    lr=1e-3,
     weight_decay=0.02,
     max_grad_norm=1.0,
     warmup_steps=10,
