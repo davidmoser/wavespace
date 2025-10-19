@@ -54,8 +54,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     criterion = BCEWithLogitsLoss()
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
-    lr_lambda = create_warmup_cosine_lr(config.epochs, len(train_loader), config.warmup_steps,
-                                        config.total_steps_override)
+    lr_lambda = create_warmup_cosine_lr(config.epochs, len(train_loader), config.warmup_steps, config.steps)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     train_log_samples = _prepare_logging_samples(

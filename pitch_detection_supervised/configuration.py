@@ -17,14 +17,12 @@ class Configuration:
     latent_dim: int = 128
 
     # optimization
-    epochs: int = 50
+    epochs: Optional[int] = None
+    steps: Optional[int] = None
     lr: float = 3e-4
     weight_decay: float = 0.02
     max_grad_norm: float = 1.0
-
-    # schedule
     warmup_steps: int = 1000
-    total_steps_override: Optional[int] = None
 
     # device and reproducibility
     device: Optional[str] = None  # None means "cuda if available else cpu"

@@ -7,20 +7,25 @@ import wandb
 from torch import Tensor
 
 
-def create_warmup_cosine_lr(epochs, steps_per_epoch, warmup_steps, total_steps_override=None):
-    total_train_steps = steps_per_epoch * epochs
-    total_steps = total_steps_override or total_train_steps
+def create_warmup_cosine_lr(steps_per_epoch, warmup_steps, epochs=None, steps=None):
+    if epochs and steps:
+        raise ValueError("epochs and steps cannot both be specified")
+
+    if epochs:
+        eff_steps = steps_per_epoch * epochs
+        eff_epochs = epochs
+    else:
+        eff_steps = steps
+        eff_epochs = math.ceil(steps / steps_per_epoch)
 
     def lr_lambda(step: int) -> float:
-        if total_steps <= 0:
-            return 1.0
         if warmup_steps > 0 and step < warmup_steps:
             return float(step) / float(max(1, warmup_steps))
-        progress = (step - warmup_steps) / float(max(1, total_steps - warmup_steps))
+        progress = (step - warmup_steps) / float(max(1, eff_steps - warmup_steps))
         progress = min(max(progress, 0.0), 1.0)
         return 0.5 * (1.0 + math.cos(math.pi * progress))
 
-    return lr_lambda
+    return eff_epochs, lr_lambda
 
 
 def resolve_device(device: str | None) -> torch.device:
