@@ -54,7 +54,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     criterion = BCEWithLogitsLoss()
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
-    lr_lambda = create_warmup_cosine_lr(config.epochs, len(train_loader), config.warmup_steps, config.steps)
+    epochs, steps, lr_lambda = create_warmup_cosine_lr(len(train_loader), config.warmup_steps, config.epochs, config.steps)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     train_log_samples = _prepare_logging_samples(train_dataset)
@@ -65,7 +65,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     best_val_top1 = 0.0
     best_state: Optional[Dict[str, Tensor]] = None
 
-    for epoch in range(1, config.epochs + 1):
+    for epoch in range(1, epochs + 1):
         print(f"Epoch {epoch}")
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
@@ -128,6 +128,8 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
                     best_val_loss = val_loss
                     best_state = copy.deepcopy({k: v.detach().cpu() for k, v in model.state_dict().items()})
 
+            if current_step == steps:
+                break
             current_step += 1
 
     if best_state is None and config.save:

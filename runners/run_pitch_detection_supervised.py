@@ -12,12 +12,12 @@ single_run(Configuration(
     sample_duration=2.0,
 
     # optimization
-    epochs=10,
-    total_steps_override=None,
+    epochs=None,
+    steps=1000,
     lr=1e-3,
     weight_decay=0.02,
     max_grad_norm=1.0,
-    warmup_steps=10,
+    warmup_steps=100,
 
     # device and reproducibility
     device="cpu",  # None means "cuda if available else cpu"
@@ -32,11 +32,17 @@ single_run(Configuration(
     eval_interval=10,
 
     # model
-    model_name="DilatedTCN",
+    # model_name="DilatedTCN",
+    # model_config={"seq_len": 150},
+
+    # model_name="LocalContextMLP",
+    # model_config={"seq_len": 150},
+
+    model_name="TokenTransformer",
     model_config={"seq_len": 150},
 
     # dataset
-    train_dataset_path="../resources/encodec_latents/poly_async_1",
+    train_dataset_path="../resources/encodec_latents/poly_async_2",
     val_dataset_path=None,
     split_train_set=0.1
 ))

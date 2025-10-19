@@ -25,7 +25,7 @@ def create_warmup_cosine_lr(steps_per_epoch, warmup_steps, epochs=None, steps=No
         progress = min(max(progress, 0.0), 1.0)
         return 0.5 * (1.0 + math.cos(math.pi * progress))
 
-    return eff_epochs, lr_lambda
+    return eff_epochs, eff_steps, lr_lambda
 
 
 def resolve_device(device: str | None) -> torch.device:
