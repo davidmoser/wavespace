@@ -55,8 +55,7 @@ def additive_harmonic(
     t = np.arange(n, dtype=np.float32) / sr
     partial_idxs = np.arange(1, n_partials + 1, dtype=np.float32)
     amps = (1.0 / (partial_idxs ** alpha)).astype(np.float32)
-    amps /= amps.max()
-    amps *= NP_RNG.uniform(0.85, 1.15, size=n_partials).astype(np.float32)
+    amps *= NP_RNG.uniform(0.7, 1., size=n_partials).astype(np.float32)
     detune = NP_RNG.normal(0.0, detune_cents_std, size=n_partials).astype(np.float32)
     freqs = f0 * partial_idxs * (2.0 ** (detune / 1200.0))
     phases = (
