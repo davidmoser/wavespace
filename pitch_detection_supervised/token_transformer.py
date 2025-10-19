@@ -3,9 +3,6 @@ from __future__ import annotations
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-__all__ = ["TokenTransformer"]
 
 
 class TokenTransformer(nn.Module):
@@ -27,16 +24,16 @@ class TokenTransformer(nn.Module):
     """
 
     def __init__(
-        self,
-        *,
-        n_classes: int = 128,
-        seq_len: int = 75,
-        latent_dim: int = 128,
-        d_model: int = 256,
-        nhead: int = 4,
-        num_layers: int = 2,
-        ffn_dim: int = 512,
-        dropout: float = 0.1,
+            self,
+            *,
+            n_classes: int = 128,
+            seq_len: int = 75,
+            latent_dim: int = 128,
+            d_model: int = 256,
+            nhead: int = 4,
+            num_layers: int = 2,
+            ffn_dim: int = 512,
+            dropout: float = 0.1,
     ) -> None:
         super().__init__()
         if latent_dim <= 0:
@@ -98,8 +95,7 @@ class TokenTransformer(nn.Module):
                 f"Input sequence length {time_steps} exceeds maximum supported length {self.seq_len}"
             )
 
-        normalized = F.normalize(x, p=2.0, dim=-1, eps=1e-12)
-        projected = self.input_projection(normalized)
+        projected = self.input_projection(x)
 
         position_ids = torch.arange(time_steps, device=x.device)
         position_embeddings = self.position_embedding(position_ids)
@@ -108,10 +104,3 @@ class TokenTransformer(nn.Module):
         encoded = self.encoder(encoded)
         logits = self.classifier(encoded)
         return logits
-
-
-if __name__ == "__main__":
-    model = TokenTransformer()
-    dummy_input = torch.randn(2, 75, 128)
-    logits = model(dummy_input)
-    print("Logits shape:", logits.shape)

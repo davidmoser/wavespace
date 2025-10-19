@@ -5,9 +5,6 @@ from typing import List
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
-__all__ = ["DilatedTCN"]
 
 
 class DilatedTCN(nn.Module):
@@ -97,7 +94,6 @@ class DilatedTCN(nn.Module):
                 f"Input latent dimension {latent_dim} does not match expected latent_dim={self.latent_dim}."
             )
 
-        x = F.normalize(x, p=2.0, dim=1, eps=1e-12)
         x = self.conv_blocks(x)
 
         logits = self.classifier(x)
@@ -110,10 +106,3 @@ class DilatedTCN(nn.Module):
             )
 
         return logits
-
-
-if __name__ == "__main__":
-    model = DilatedTCN()
-    dummy_input = torch.randn(3, 75, 128)
-    output = model(dummy_input)
-    print("Logits shape:", output.shape)

@@ -1,11 +1,7 @@
 """Lightweight local-context MLP for supervised pitch detection."""
 from __future__ import annotations
 
-import torch.nn.functional as F
-import torch
 from torch import Tensor, nn
-
-__all__ = ["LocalContextMLP"]
 
 
 class LocalContextMLP(nn.Module):
@@ -104,9 +100,6 @@ class LocalContextMLP(nn.Module):
                 f"Expected feature dimension D={self.latent_dim}, but received D={feature_dim}."
             )
 
-        # L2-normalize each time step independently across the latent dimension.
-        x = F.normalize(x, p=2.0, dim=-1, eps=1e-12)
-
         # Depthwise temporal convolution over local context.
         x = x.transpose(1, 2)  # (B, D, T)
         x = self.temporal_conv(x)
@@ -121,10 +114,3 @@ class LocalContextMLP(nn.Module):
                 f"expected {(batch_size, time_steps, self.n_classes)}, got {tuple(logits.shape)}."
             )
         return logits
-
-
-if __name__ == "__main__":
-    model = LocalContextMLP()
-    dummy_input = torch.randn(2, 75, 128)
-    output = model(dummy_input)
-    print(output.shape)
