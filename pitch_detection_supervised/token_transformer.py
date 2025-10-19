@@ -36,21 +36,6 @@ class TokenTransformer(nn.Module):
             dropout: float = 0.1,
     ) -> None:
         super().__init__()
-        if latent_dim <= 0:
-            raise ValueError("latent_dim must be positive")
-        if d_model <= 0:
-            raise ValueError("d_model must be positive")
-        if n_classes <= 0:
-            raise ValueError("n_classes must be positive")
-        if seq_len <= 0:
-            raise ValueError("seq_len must be positive")
-        if num_layers <= 0:
-            raise ValueError("num_layers must be positive")
-        if nhead <= 0:
-            raise ValueError("nhead must be positive")
-        if ffn_dim <= 0:
-            raise ValueError("ffn_dim must be positive")
-
         self.n_classes = n_classes
         self.seq_len = seq_len
         self.latent_dim = latent_dim
@@ -74,27 +59,24 @@ class TokenTransformer(nn.Module):
         """Apply the TokenTransformer.
 
         Args:
-            x: Input tensor of shape ``(batch, time, latent_dim)``.
+            x: Input tensor of shape ``(batch, latent_dim, time)``.
 
         Returns:
-            Tensor of shape ``(batch, time, n_classes)`` containing class logits.
+            Tensor of shape ``(batch, n_classes, time)`` containing class logits.
         """
 
         if x.dim() != 3:
             raise ValueError(
-                f"Expected a 3D tensor for x of shape (batch, time, latent_dim), got {tuple(x.shape)}"
+                f"Expected a 3D tensor for x of shape (batch, latent_dim, time), got {tuple(x.shape)}"
             )
 
-        _, time_steps, feature_dim = x.shape
+        _, feature_dim, time_steps = x.shape
         if feature_dim != self.latent_dim:
-            raise ValueError(
-                f"Expected latent_dim={self.latent_dim}, but received {feature_dim}"
-            )
+            raise ValueError(f"Expected latent_dim={self.latent_dim}, but received {feature_dim}")
         if time_steps > self.seq_len:
-            raise ValueError(
-                f"Input sequence length {time_steps} exceeds maximum supported length {self.seq_len}"
-            )
+            raise ValueError(f"Input sequence length {time_steps} exceeds maximum supported length {self.seq_len}")
 
+        x = x.transpose(1, 2)
         projected = self.input_projection(x)
 
         position_ids = torch.arange(time_steps, device=x.device)
@@ -103,4 +85,4 @@ class TokenTransformer(nn.Module):
 
         encoded = self.encoder(encoded)
         logits = self.classifier(encoded)
-        return logits
+        return logits.transpose(1, 2)

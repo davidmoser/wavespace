@@ -23,14 +23,14 @@ class LocalContextMLP(nn.Module):
     """
 
     def __init__(
-        self,
-        *,
-        n_classes: int = 128,
-        seq_len: int = 75,
-        latent_dim: int = 128,
-        hidden_dim: int = 256,
-        kernel_size: int = 15,
-        dropout: float = 0.1,
+            self,
+            *,
+            n_classes: int = 128,
+            seq_len: int = 75,
+            latent_dim: int = 128,
+            hidden_dim: int = 256,
+            kernel_size: int = 15,
+            dropout: float = 0.1,
     ) -> None:
         super().__init__()
         if kernel_size % 2 == 0:
@@ -80,37 +80,34 @@ class LocalContextMLP(nn.Module):
         """Run the local context MLP.
 
         Args:
-            x: Input tensor of shape ``(batch, time, latent_dim)``.
+            x: Input tensor of shape ``(batch, latent_dim, time)``.
 
         Returns:
-            Logits tensor of shape ``(batch, time, n_classes)``.
+            Logits tensor of shape ``(batch, n_classes, time)``.
         """
 
         if x.ndim != 3:
             raise ValueError(
-                f"Expected input tensor with 3 dimensions (batch, time, latent_dim), got shape {tuple(x.shape)}."
+                f"Expected input tensor with 3 dimensions (batch, latent_time, time), got shape {tuple(x.shape)}."
             )
-        batch_size, time_steps, feature_dim = x.shape
+        batch_size, feature_dim, time_steps = x.shape
         if time_steps != self.seq_len:
-            raise ValueError(
-                f"Expected time dimension T={self.seq_len}, but received T={time_steps}."
-            )
+            raise ValueError(f"Expected time dimension T={self.seq_len}, but received T={time_steps}.")
         if feature_dim != self.latent_dim:
-            raise ValueError(
-                f"Expected feature dimension D={self.latent_dim}, but received D={feature_dim}."
-            )
+            raise ValueError(f"Expected feature dimension D={self.latent_dim}, but received D={feature_dim}.")
 
         # Depthwise temporal convolution over local context.
-        x = x.transpose(1, 2)  # (B, D, T)
         x = self.temporal_conv(x)
         x = self.temporal_activation(x)
-        x = x.transpose(1, 2)  # (B, T, D)
 
         # Time-distributed MLP head operating on each time step independently.
+        x = x.transpose(1, 2)
         logits = self.mlp_head(x)
-        if logits.shape != (batch_size, time_steps, self.n_classes):
+        logits = logits.transpose(1, 2)
+
+        if logits.shape != (batch_size, self.n_classes, time_steps):
             raise RuntimeError(
                 "Unexpected logits shape after MLP head: "
-                f"expected {(batch_size, time_steps, self.n_classes)}, got {tuple(logits.shape)}."
+                f"expected {(batch_size, self.n_classes, time_steps)}, got {tuple(logits.shape)}."
             )
         return logits

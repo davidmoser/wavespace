@@ -81,14 +81,10 @@ class DilatedTCN(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.dim() != 3:
-            raise ValueError(
-                f"DilatedTCN expected a 3D tensor with shape [B, T, D], but received {tuple(x.shape)}"
-            )
+            raise ValueError(f"DilatedTCN expected a 3D tensor with shape [B, L, T], but received {tuple(x.shape)}")
         batch_size, latent_dim, seq_len = x.shape
         if seq_len != self.seq_len:
-            raise ValueError(
-                f"Input sequence length {seq_len} does not match expected seq_len={self.seq_len}."
-            )
+            raise ValueError(f"Input sequence length {seq_len} does not match expected seq_len={self.seq_len}.")
         if latent_dim != self.latent_dim:
             raise ValueError(
                 f"Input latent dimension {latent_dim} does not match expected latent_dim={self.latent_dim}."
