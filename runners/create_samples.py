@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Optional, Union
 
 import matplotlib.pyplot as plt
-import numpy as np
 import soundfile as sf
 import torch
 
@@ -238,13 +237,9 @@ def export_store_samples(
         label_tensor = label.detach().to(torch.float32).cpu()
         label_array = label_tensor.numpy()
 
-        binary = (label_array > 0.0).astype(np.float32)
-        plt.imsave(output_dir / f"bw{sample_number:03d}.png", binary, cmap="gray", vmin=0.0, vmax=1.0)
-
-        label_max = float(label_array.max())
-        vmax = label_max if label_max > 0.0 else 1.0
+        vmax = float(label_array.max())
         plt.imsave(
-            output_dir / f"color{sample_number:03d}.png",
+            output_dir / f"sample_{sample_number:03d}.png",
             label_array,
             cmap="magma",
             vmin=0.0,
@@ -253,4 +248,9 @@ def export_store_samples(
 
 
 if __name__ == "__main__":
-    build_dataset_poly_async(out_dir="../resources/polyphony_samples", n_samples=50, duration=3, max_polyphony=5)
+    # build_dataset_poly_async(out_dir="../resources/polyphony_samples", n_samples=50, duration=3, max_polyphony=5)
+    export_store_samples(
+        store_path="../resources/encodec_latents/poly_async_3",
+        destination="../resources/polyphony/latent_store_samples",
+        sample_count=30,
+    )
