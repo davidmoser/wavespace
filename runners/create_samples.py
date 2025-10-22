@@ -5,9 +5,14 @@
 import csv
 import json
 from pathlib import Path
+from typing import Optional, Union
 
+import matplotlib.pyplot as plt
+import numpy as np
 import soundfile as sf
+import torch
 
+from datasets.poly_dataset import PolyphonicAsyncDatasetFromStore
 from datasets.poly_utils import (
     RNG,
     Spec,
@@ -139,6 +144,112 @@ def build_dataset_poly_async(
          "max_polyphony": max_polyphony, "mode": "async", "freq_range_hz": freq_range},
         indent=2
     ))
+
+
+def export_store_samples(
+        store_path: Union[str, Path],
+        destination: Union[str, Path],
+        sample_count: int,
+        *,
+        seed: Optional[int] = None,
+        device: Optional[Union[str, torch.device]] = None,
+) -> None:
+    """Export random samples from a latent store as audio and label images.
+
+    Args:
+        store_path: Directory containing the latent dataset artifacts.
+        destination: Output directory where the assets will be written.
+        sample_count: Number of random samples to export.
+        seed: Optional random seed for reproducible sampling.
+        device: Optional torch device used to run the Encodec decoder. Defaults
+            to ``"cuda"`` when available otherwise ``"cpu"``.
+    """
+    if sample_count <= 0:
+        raise ValueError("sample_count must be positive")
+
+    root = Path(store_path)
+    if not root.is_dir():
+        raise FileNotFoundError(f"Dataset store not found: {root}")
+
+    output_dir = Path(destination)
+    output_dir.mkdir(parents=True, exist_ok=False)
+
+    dataset = PolyphonicAsyncDatasetFromStore(root, map_location="cpu")
+    dataset_length = len(dataset)
+    if sample_count > dataset_length:
+        raise ValueError(
+            f"Requested {sample_count} samples but dataset only contains {dataset_length}."
+        )
+
+    metadata_path = root / "dataset.json"
+    metadata: dict = {}
+    if metadata_path.is_file():
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid dataset metadata JSON: {metadata_path}") from exc
+
+    encoding_meta = metadata.get("encoding", {}) if isinstance(metadata, dict) else {}
+    dataset_sr = int(encoding_meta.get("dataset_sample_rate", SR))
+
+    generator = torch.Generator()
+    if seed is not None:
+        generator.manual_seed(int(seed))
+    else:
+        generator.seed()
+    indices = torch.randperm(dataset_length, generator=generator)[:sample_count].tolist()
+
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(device)
+
+    from encodec import EncodecModel  # local import to avoid unnecessary dependency at import time
+    from encodec.utils import convert_audio
+
+    model = EncodecModel.encodec_model_24khz()
+    target_bandwidth = encoding_meta.get("target_bandwidth")
+    if target_bandwidth is not None:
+        try:
+            model.set_target_bandwidth(float(target_bandwidth))
+        except (TypeError, ValueError):
+            pass
+    model = model.to(device)
+    model.eval()
+
+    for sample_number, dataset_index in enumerate(indices, start=1):
+        latents, label = dataset[dataset_index]
+
+        latents_tensor = latents.detach().to(device=device, dtype=torch.float32)
+        with torch.no_grad():
+            decoded = model.decoder(latents_tensor.unsqueeze(0))
+        waveform = decoded.squeeze(0).to(torch.float32).cpu()
+
+        waveform = convert_audio(
+            waveform,
+            int(model.sample_rate),
+            int(dataset_sr),
+            waveform.shape[0],
+        )
+        audio = waveform.transpose(0, 1).numpy()
+
+        sf.write(output_dir / f"sample{sample_number:03d}.wav", audio, dataset_sr, subtype="FLOAT")
+
+        label_tensor = label.detach().to(torch.float32).cpu()
+        label_array = label_tensor.numpy()
+
+        binary = (label_array > 0.0).astype(np.float32)
+        plt.imsave(output_dir / f"bw{sample_number:03d}.png", binary, cmap="gray", vmin=0.0, vmax=1.0)
+
+        label_max = float(label_array.max())
+        vmax = label_max if label_max > 0.0 else 1.0
+        plt.imsave(
+            output_dir / f"color{sample_number:03d}.png",
+            label_array,
+            cmap="magma",
+            vmin=0.0,
+            vmax=vmax,
+        )
 
 
 if __name__ == "__main__":
