@@ -43,13 +43,13 @@ def biquad_lpf(x: np.ndarray, sr: float, cutoff_hz: float, order: int = 4) -> np
 
 
 def additive_harmonic(
-    f0: float,
-    sr: float,
-    dur: float,
-    n_partials: int = 10,
-    alpha: float = 1.0,
-    detune_cents_std: float = 3.0,
-    phase_random: bool = True,
+        f0: float,
+        sr: float,
+        dur: float,
+        n_partials: int = 10,
+        alpha: float = 1.0,
+        detune_cents_std: float = 3.0,
+        phase_random: bool = True,
 ) -> np.ndarray:
     n = int(dur * sr)
     t = np.arange(n, dtype=np.float32) / sr
@@ -66,8 +66,7 @@ def additive_harmonic(
     y = np.zeros(n, dtype=np.float32)
     for a, f, p in zip(amps, freqs, phases):
         y += a * np.sin(2 * np.pi * f * t + p, dtype=np.float32)
-    peak = np.max(np.abs(y)) + 1e-9
-    return (y / peak).astype(np.float32)
+    return y
 
 
 def simple_clip(x: np.ndarray, drive: float = 0.0) -> np.ndarray:
@@ -113,7 +112,7 @@ def render_sample(
         sr: float,
         dur: float,
         spec: Spec,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> np.ndarray:
     n = int(dur * sr)
     tone = additive_harmonic(
         f0=f0,
@@ -132,8 +131,9 @@ def render_sample(
     if spec.reverb_wet > 0.0:
         y = apply_reverb_offline(y, sr, wet=spec.reverb_wet, room_size=spec.reverb_room)
     peak = np.max(np.abs(y)) + 1e-12
-    y = (0.95 * y / peak).astype(np.float32)
-    return y, env
+    if peak > 1.0:
+        y = (y / peak).astype(np.float32)
+    return y
 
 
 def render_poly_interval_freq(freqs_hz: Sequence[float], sr: float, dur: float) -> Tuple[np.ndarray, List[float]]:
@@ -143,7 +143,7 @@ def render_poly_interval_freq(freqs_hz: Sequence[float], sr: float, dur: float) 
         f0_float = float(f0)
         f0s.append(f0_float)
         spec = Spec()
-        note, _ = render_sample(f0_float, sr, dur, spec)
+        note = render_sample(f0_float, sr, dur, spec)
         mix += note
     peak = np.max(np.abs(mix)) + 1e-12
     mix = (0.95 * mix / peak).astype(np.float32)
@@ -151,10 +151,10 @@ def render_poly_interval_freq(freqs_hz: Sequence[float], sr: float, dur: float) 
 
 
 def render_poly_interval_async_freq(
-    freqs_hz: Sequence[float],
-    sr: float,
-    dur: float,
-    min_note_dur: float = 0.12,
+        freqs_hz: Sequence[float],
+        sr: float,
+        dur: float,
+        min_note_dur: float = 0.12,
 ) -> Tuple[np.ndarray, List[float], List[float], List[float], List[np.ndarray]]:
     n_total = int(dur * sr)
     mix = np.zeros(n_total, dtype=np.float32)
@@ -162,7 +162,7 @@ def render_poly_interval_async_freq(
     f0s: List[float] = []
     onsets_s: List[float] = []
     durs_s: List[float] = []
-    envelopes: List[np.ndarray] = []
+    samples: List[np.ndarray] = []
 
     for f0 in freqs_hz:
         f0_float = float(f0)
@@ -173,16 +173,53 @@ def render_poly_interval_async_freq(
         note_dur = RNG.uniform(min_note_dur, max_dur)
 
         spec = Spec()
-        y, env = render_sample(f0_float, sr, note_dur, spec)
+        y = render_sample(f0_float, sr, note_dur, spec)
 
         start = int(onset_s * sr)
         end = min(start + len(y), n_total)
-        mix[start:end] += y[: end - start]
+
+        y_embedded = np.zeros(n_total, dtype=np.float32)
+        y_embedded[start:end] += y[: end - start] ** 2
+        samples.append(y_embedded)
+
+        mix += y_embedded
 
         onsets_s.append(onset_s)
         durs_s.append(note_dur)
-        envelopes.append(env[: end - start])
 
-    peak = float(np.max(np.abs(mix)) + 1e-12)
-    mix = (0.95 * mix / peak).astype(np.float32)
-    return mix, f0s, onsets_s, durs_s, envelopes
+    peak = np.max(np.abs(mix))
+    if peak > 1.0:
+        mix = mix / peak
+        samples = [sample / peak for sample in samples]
+    return mix, f0s, onsets_s, durs_s, samples
+
+
+def power(x, sr, fc=12.0, out_sr=75.0, method="filtfilt"):
+    """ Broadband power envelope from an audio signal. """
+    if fc >= out_sr / 2:
+        fc = 0.9 * (out_sr / 2)  # safety
+
+    # Instantaneous power
+    p = x.astype(float) ** 2
+
+    # Low-pass on power
+    if method == "iir":
+        # One-pole (exponential moving average), fc -> alpha
+        alpha = 1.0 - np.exp(-2.0 * np.pi * fc / sr)
+        y = np.empty_like(p)
+        y[0] = p[0]
+        for n in range(1, len(p)):
+            y[n] = y[n - 1] + alpha * (p[n] - y[n - 1])
+    elif method == "filtfilt":
+        from scipy.signal import butter, filtfilt
+        b, a = butter(4, fc / (sr / 2.0))  # 4th-order Butterworth
+        y = filtfilt(b, a, p, padlen=min(3 * max(len(b), len(a)), len(p) - 1))
+    else:
+        raise ValueError("method must be 'iir' or 'filtfilt'")
+
+    # Resample to 75 Hz by interpolation (aligns to exact 1/75 s grid)
+    t = np.arange(len(y)) / sr
+    t_75 = np.arange(0.0, t[-1] + 1e-12, 1.0 / out_sr)
+    pow_75 = np.interp(t_75, t, y)
+
+    return pow_75

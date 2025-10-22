@@ -11,11 +11,12 @@ from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
+import zstandard
 from torch import Tensor
 from torch.utils.data import Dataset
-import zstandard
 
 from datasets import poly_utils
+from datasets.poly_utils import power
 
 
 def _validate_freq_range(freq_range: Sequence[float]) -> Tuple[float, float]:
@@ -98,18 +99,18 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
             raise IndexError("index out of range")
 
         seed = self._sample_seeds[index]
-        waveform, notes = self._render_sample(seed)
+        mix, f0s, samples = self._render_sample(seed)
 
-        audio = torch.from_numpy(waveform).to(dtype=torch.float32)
+        audio = torch.from_numpy(mix).to(dtype=torch.float32)
         audio = audio.unsqueeze(0)
 
-        label = self._build_label_tensor(notes)
+        label = self._build_label_tensor(f0s, samples)
 
         return audio, label
 
     def _render_sample(
-        self, seed: int
-    ) -> Tuple[np.ndarray, List[Tuple[float, float, float, np.ndarray]]]:
+            self, seed: int
+    ) -> Tuple[np.ndarray, List[float], List[np.ndarray]]:
         rng_state = poly_utils.RNG.getstate()
         np_rng = poly_utils.NP_RNG
         try:
@@ -121,7 +122,7 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
                 poly_utils.log_uniform(self.freq_min, self.freq_max)
                 for _ in range(k)
             ]
-            waveform, f0s, onsets, durs, envelopes = poly_utils.render_poly_interval_async_freq(
+            mix, f0s, _, _, samples = poly_utils.render_poly_interval_async_freq(
                 freqs,
                 self.sample_rate,
                 self.duration,
@@ -131,60 +132,26 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
             poly_utils.RNG.setstate(rng_state)
             poly_utils.NP_RNG = np_rng
 
-        notes = [
-            (float(freq), float(onset), float(dur), env.astype(np.float32))
-            for freq, onset, dur, env in zip(f0s, onsets, durs, envelopes)
-        ]
-
-        return waveform, notes
+        return mix, f0s, samples
 
     def _build_label_tensor(
-        self, notes: Sequence[Tuple[float, float, float, np.ndarray]]
+            self, f0s: List[float], samples: Sequence[np.ndarray]
     ) -> Tensor:
         label = torch.zeros(self._label_bins, self.label_frames, dtype=torch.float32)
 
-        for freq, onset, duration, envelope in notes:
-            weights = self._frequency_weights(freq)
+        for f0, sample in zip(f0s, samples):
+            weights = self._frequency_weights(f0)
             if not weights:
                 continue
 
-            actual_duration = min(duration, envelope.shape[0] / float(self.sample_rate))
-            sampled_envelope = self._sample_envelope(envelope, actual_duration)
-            if sampled_envelope.size == 0:
-                continue
+            pow_y = power(sample, self.sample_rate, method="filtfilt", out_sr=self.label_sample_rate)
 
-            onset_frame = int(math.floor(onset * self.label_sample_rate))
-            for frame_offset, amplitude in enumerate(sampled_envelope):
-                frame_idx = onset_frame + frame_offset
-                if frame_idx < 0 or frame_idx >= self.label_frames:
-                    continue
-
-                intensity = float(amplitude) ** 2
-                if intensity <= 0.0:
-                    continue
-
-                for bin_index, weight in weights:
-                    label[bin_index, frame_idx] += intensity * weight
+            for bin_index, weight in weights:
+                label[bin_index] += pow_y * weight
 
         label.clamp_(max=1.0)
 
         return label
-
-    def _sample_envelope(self, envelope: np.ndarray, duration: float) -> np.ndarray:
-        n_frames = int(math.ceil(duration * self.label_sample_rate))
-        if n_frames <= 0:
-            return np.empty(0, dtype=np.float32)
-
-        times = np.arange(envelope.shape[0], dtype=np.float32) / float(self.sample_rate)
-        target_times = np.arange(n_frames, dtype=np.float32) / float(self.label_sample_rate)
-        sampled = np.interp(
-            target_times,
-            times,
-            envelope.astype(np.float32),
-            left=0.0,
-            right=0.0,
-        )
-        return sampled.astype(np.float32)
 
     def _frequency_weights(self, freq_hz: float) -> List[Tuple[int, float]]:
         centers = self._label_centers
@@ -217,10 +184,10 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Tensor]]):
     """
 
     def __init__(
-        self,
-        store_path: Union[str, Path],
-        *,
-        map_location: Optional[Union[str, torch.device]] = "cpu",
+            self,
+            store_path: Union[str, Path],
+            *,
+            map_location: Optional[Union[str, torch.device]] = "cpu",
     ) -> None:
         self._root = Path(store_path)
         if not self._root.is_dir():
@@ -253,12 +220,12 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Tensor]]):
         __slots__ = ("key", "shard", "member", "offset", "size")
 
         def __init__(
-            self,
-            key: str,
-            shard: str,
-            member: str,
-            offset: int,
-            size: int,
+                self,
+                key: str,
+                shard: str,
+                member: str,
+                offset: int,
+                size: int,
         ) -> None:
             self.key = key
             self.shard = shard

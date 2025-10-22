@@ -20,7 +20,7 @@ dataset = PolyphonicAsyncDataset(
 
 create_latent_store(
     dataset,
-    dataset_path="../resources/encodec_latents/poly_async_2",
+    dataset_path="../resources/encodec_latents/poly_async_3",
     dataset_sample_rate=sampling_rate,
     metadata={
         "dataset": dataset.__class__.__name__,
