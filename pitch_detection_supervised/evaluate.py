@@ -145,4 +145,7 @@ def _create_piano_roll_panel(target: np.ndarray, prediction: np.ndarray) -> np.n
 
     separator = np.ones((target_img.shape[0], 1), dtype=np.float32)
     panel = np.concatenate((target_img, separator, prediction_img), axis=1)
-    return panel
+    panel_norm = panel / target.max()
+    rgba = cm.get_cmap('viridis')(panel_norm)  # (H, W, 4) floats in [0,1]
+    rgb = (rgba[..., :3] * 255).astype('uint8')  # (H, W, 3) uint8
+    return rgb
