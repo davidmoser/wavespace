@@ -34,8 +34,8 @@ MODEL_REGISTRY = {
 }
 
 
-def _create_model(config: Configuration) -> Module:
-    return MODEL_REGISTRY[config.model_name](**config.model_config)
+def create_model(name: str, config: dict) -> Module:
+    return MODEL_REGISTRY[name](**config)
 
 
 def train(config: Configuration) -> Dict[str, Optional[float]]:
@@ -48,7 +48,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     train_loader = _create_loader(train_dataset, config.batch_size, config.num_workers)
     val_loader = _create_loader(val_dataset, config.batch_size, config.num_workers)
 
-    model = _create_model(config)
+    model = create_model(config.model_name, config.model_config)
     model.to(device)
     model.train()
     criterion = BCEWithLogitsLoss()
