@@ -2,8 +2,9 @@ import math
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
 
-import torch
+import matplotlib.cm as cm
 import numpy as np
+import torch
 import wandb
 from torch import Tensor
 from torch.nn import Module, BCEWithLogitsLoss
