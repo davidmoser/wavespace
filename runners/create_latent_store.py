@@ -3,8 +3,8 @@ from datasets.poly_dataset import PolyphonicAsyncDataset
 
 duration = 2.0
 sampling_rate = 24000
-min_freq = 100.0
-max_freq = 10000.0
+min_freq = 50.0
+max_freq = 5000.0
 num_samples = 10000
 max_polyphony = 10
 min_note_duration = 0.12
@@ -20,7 +20,7 @@ dataset = PolyphonicAsyncDataset(
 
 create_latent_store(
     dataset,
-    dataset_path="../resources/encodec_latents/poly_async_3",
+    dataset_path="../resources/encodec_latents/poly_async_4",
     dataset_sample_rate=sampling_rate,
     metadata={
         "dataset": dataset.__class__.__name__,

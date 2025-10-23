@@ -13,11 +13,11 @@ single_run(Configuration(
 
     # optimization
     epochs=None,
-    steps=1000,
+    steps=500,
     lr=1e-3,
     weight_decay=0.02,
     max_grad_norm=1.0,
-    warmup_steps=100,
+    warmup_steps=10,
 
     # device and reproducibility
     device="cpu",  # None means "cuda if available else cpu"
@@ -42,7 +42,7 @@ single_run(Configuration(
     model_config={"seq_len": 150},
 
     # dataset
-    train_dataset_path="../resources/encodec_latents/poly_async_2",
+    train_dataset_path="../resources/encodec_latents/poly_async_4",
     val_dataset_path=None,
     split_train_set=0.1
 ))
