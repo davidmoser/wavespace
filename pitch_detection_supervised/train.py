@@ -51,10 +51,11 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     model = create_model(config.model_name, config.model_config)
     model.to(device)
     model.train()
-    criterion = BCEWithLogitsLoss()
+    criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(30))
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
-    epochs, steps, lr_lambda = create_warmup_cosine_lr(len(train_loader), config.warmup_steps, config.epochs, config.steps)
+    epochs, steps, lr_lambda = create_warmup_cosine_lr(len(train_loader), config.warmup_steps, config.epochs,
+                                                       config.steps)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
     train_log_samples = _prepare_logging_samples(train_dataset)

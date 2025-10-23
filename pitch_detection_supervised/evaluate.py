@@ -29,7 +29,7 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
         return {"loss": math.nan}
 
     device = next(model.parameters()).device
-    criterion = BCEWithLogitsLoss()
+    criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(30))
 
     total_loss = torch.zeros(1, device=device)
 
