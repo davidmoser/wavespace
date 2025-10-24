@@ -17,6 +17,7 @@ from torch.utils.data import Dataset
 
 from datasets import poly_utils
 from datasets.poly_utils import power
+from pitch_detection_supervised.utils import events_to_active_label
 
 
 def _validate_freq_range(freq_range: Sequence[float]) -> Tuple[float, float]:
@@ -50,6 +51,7 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
         label_sample_rate: float = 75.0,
         label_centers_hz: Optional[Sequence[float]] = None,
         label_bins: int = 128,
+        label_type: str = "power",
         seed: Optional[int] = None,
     ) -> None:
         if n_samples <= 0:
@@ -87,6 +89,12 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
             centers = np.sort(centers)
         self._label_centers = centers
         self._label_bins = int(centers.shape[0])
+
+        label_type_value = str(label_type).lower()
+        if label_type_value not in {"power", "activation"}:
+            raise ValueError("label_type must be either 'power' or 'activation'")
+
+        self.label_type = label_type_value
 
         self._base_seed = seed if seed is not None else 1234
         self._sample_seeds = [self._base_seed + i for i in range(self.n_samples)]
@@ -137,6 +145,15 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
     def _build_label_tensor(
             self, f0s: List[float], samples: Sequence[np.ndarray]
     ) -> Tensor:
+        if self.label_type == "power":
+            return self._build_power_label(f0s, samples)
+        if self.label_type == "activation":
+            return self._build_activation_label(f0s, samples)
+        raise RuntimeError(f"Unsupported label_type: {self.label_type}")
+
+    def _build_power_label(
+            self, f0s: List[float], samples: Sequence[np.ndarray]
+    ) -> Tensor:
         label = torch.zeros(self._label_bins, self.label_frames, dtype=torch.float32)
 
         for f0, sample in zip(f0s, samples):
@@ -152,6 +169,52 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
         label.clamp_(max=1.0)
 
         return label
+
+    def _build_activation_label(
+            self, f0s: List[float], samples: Sequence[np.ndarray]
+    ) -> Tensor:
+        events = []
+        sr = float(self.sample_rate)
+        threshold = 0.1
+        for f0, sample in zip(f0s, samples):
+            if sample is None:
+                continue
+            sample_arr = np.asarray(sample, dtype=np.float32)
+            if sample_arr.size == 0:
+                continue
+
+            amplitude = np.sqrt(np.clip(sample_arr, 0.0, None))
+            active = amplitude > threshold
+            if not np.any(active):
+                continue
+
+            active_indices = np.flatnonzero(active)
+            splits = np.split(active_indices, np.where(np.diff(active_indices) > 1)[0] + 1)
+            for segment in splits:
+                if segment.size == 0:
+                    continue
+                start_idx = int(segment[0])
+                end_idx = int(segment[-1]) + 1
+                onset = float(start_idx / sr)
+                offset = float(end_idx / sr)
+                if offset <= onset:
+                    continue
+                if onset >= self.duration:
+                    continue
+                events.append((float(f0), max(0.0, onset), min(self.duration, offset)))
+
+        if not events:
+            return torch.zeros(self._label_bins, self.label_frames, dtype=torch.float32)
+
+        label = events_to_active_label(
+            events,
+            self._label_centers,
+            self.duration,
+            self.label_frames,
+            dtype=torch.float32,
+        )
+
+        return label.gt(0).to(dtype=torch.float32)
 
     def _frequency_weights(self, freq_hz: float) -> List[Tuple[int, float]]:
         centers = self._label_centers

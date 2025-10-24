@@ -70,7 +70,7 @@ def update_wandb_summary(summary: Dict[str, Any]) -> None:
             continue
         wandb.run.summary[key] = value
 
-def label_to_tensor(
+def events_to_active_label(
         events,  # list of (frequency_hz, onset_s, offset_s)
         frequency_bin_centers_hz,  # list/1D array-like
         duration_s: float,
