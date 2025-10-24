@@ -6,7 +6,8 @@ descript-audiotools
 runpod>=1.7.9
 matplotlib~=3.10.3
 torch>=2.7.0
-torchaudio>=2.7.0
+torchaudio>=2.9.0
+torchcodec>=0.8.0
 demucs~=4.0.1
 numpy>=2.1
 pandas~=2.2.3
