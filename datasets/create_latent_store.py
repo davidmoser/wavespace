@@ -14,11 +14,10 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tupl
 
 import torch
 import zstandard
-from torch import Tensor
-from torch.utils.data import Dataset as TorchDataset
-
 from encodec import EncodecModel
 from encodec.utils import convert_audio
+from torch import Tensor
+from torch.utils.data import Dataset as TorchDataset
 
 DatasetItem = Tuple[Tensor, Tensor]
 
@@ -73,7 +72,7 @@ def create_latent_store(
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = EncodecModel.encodec_model_24khz()
+    model = EncodecModel.encodec_model_48khz() if dataset_sample_rate >= 48_000 else EncodecModel.encodec_model_24khz()
     model.set_target_bandwidth(target_bandwidth)
     model = model.to(device)
     model.eval()

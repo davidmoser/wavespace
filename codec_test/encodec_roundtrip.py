@@ -107,13 +107,13 @@ def encodec_roundtrip(
 
 
 if __name__ == "__main__":
-    input_file = Path("../resources/Gentle on My Mind - Cotton Pickin Kids/Gentle on My Mind - Cotton Pickin Kids.mp3")
+    input_file = Path("../resources/encodec_latents/samples/polyphony_samples/0023_k5.wav")
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     result_path = encodec_roundtrip(
         input_file,
-        bandwidth=12,
+        bandwidth=24,
         model_name="48khz",
         output_format="wav",
         device=None,
