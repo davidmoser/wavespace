@@ -171,7 +171,7 @@ def export_store_samples(
         raise FileNotFoundError(f"Dataset store not found: {root}")
 
     output_dir = Path(destination)
-    output_dir.mkdir(parents=True, exist_ok=False)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     dataset = PolyphonicAsyncDatasetFromStore(root, map_location="cpu")
     dataset_length = len(dataset)
@@ -206,7 +206,12 @@ def export_store_samples(
     from encodec import EncodecModel  # local import to avoid unnecessary dependency at import time
     from encodec.utils import convert_audio
 
-    model = EncodecModel.encodec_model_24khz()
+    if dataset_sr == 48_000:
+        model = EncodecModel.encodec_model_48khz()
+    elif dataset_sr == 24_000:
+        model =  EncodecModel.encodec_model_24khz()
+    else:
+        raise ValueError(f"Dataset sampling rate {dataset_sr} not supported.")
     target_bandwidth = encoding_meta.get("target_bandwidth")
     if target_bandwidth is not None:
         try:
@@ -250,7 +255,7 @@ def export_store_samples(
 if __name__ == "__main__":
     # build_dataset_poly_async(out_dir="../resources/polyphony_samples", n_samples=50, duration=3, max_polyphony=5)
     export_store_samples(
-        store_path="../resources/encodec_latents/poly_async_4",
-        destination="../resources/polyphony/latent_store_samples",
+        store_path="../resources/encodec_latents/poly_async_bandw_test",
+        destination="../resources/encodec_latents/samples/bandw_test",
         sample_count=30,
     )

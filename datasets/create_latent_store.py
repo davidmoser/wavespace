@@ -34,11 +34,13 @@ def create_latent_store(
         dataset: TorchDataset[DatasetItem],
         dataset_path: Union[str, Path],
         dataset_sample_rate: int,
+        *,
         target_bandwidth: float = 24.0,  # kbit/s
         metadata: Optional[Dict[str, Any]] = None,
         device: Optional[torch.device] = None,
         samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
         latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]] = None,
+        normalized: bool = False,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
@@ -132,7 +134,17 @@ def create_latent_store(
                     resampled = convert_audio(waveform, int(dataset_sample_rate), model.sample_rate, model.channels)
                     resampled = resampled.unsqueeze(0).to(device)
 
+                    payload: Dict[str, Any] = {}
+                    if normalized:
+                        mono = resampled.mean(dim=1, keepdim=True)
+                        volume = mono.pow(2).mean(dim=2, keepdim=True).sqrt()
+                        scale = 1e-8 + volume
+                        resampled = resampled / scale
+                        scale = scale.view(-1, 1)
+                        payload["scale"] = scale
+
                     latents = model.encoder(resampled).squeeze(0).contiguous().to("cpu")
+                    payload["latents"] = latents
 
                     if latent_callback is not None:
                         latent_callback(dataset_index, latents, item)
@@ -145,12 +157,12 @@ def create_latent_store(
                     if not isinstance(label, Tensor):
                         raise TypeError("Dataset labels must be torch.Tensors.")
                     label = label.detach().to(torch.float32).cpu()
+                    payload["label"] = label
 
                     key = f"{dataset_index:0{key_pad}d}"
                     filename = f"{key}.pt"
 
                     buffer = io.BytesIO()
-                    payload: Dict[str, Any] = {"latents": latents, "label": label}
                     if len(item) > 2:
                         payload["extras"] = _prepare_extras(item[2:])
 

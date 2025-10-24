@@ -244,7 +244,7 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Tensor]]):
             raise IndexError("index out of range")
 
         record = self._records[index]
-        latents, label = self._load_payload(record)
+        latents, _, label = self._load_payload(record)
 
         return latents, label
 
@@ -291,7 +291,7 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Tensor]]):
 
         return records
 
-    def _load_payload(self, record: "PolyphonicAsyncDatasetFromStore._IndexRecord") -> Tuple[Tensor, Tensor]:
+    def _load_payload(self, record: "PolyphonicAsyncDatasetFromStore._IndexRecord") -> Tuple[Tensor, float, Tensor]:
         shard_path = self._root / record.shard
         if not shard_path.is_file():
             raise FileNotFoundError(f"Shard not found: {shard_path}")
@@ -337,6 +337,7 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Tensor]]):
             )
 
         latents = payload.get("latents")
+        scale = payload.get("scale")
         label = payload.get("label")
 
         if not isinstance(latents, Tensor):
@@ -348,4 +349,4 @@ class PolyphonicAsyncDatasetFromStore(Dataset[Tuple[Tensor, Tensor]]):
                 f"Expected 'label' tensor for key '{record.key}', got {type(label)!r}."
             )
 
-        return latents, label
+        return latents, scale, label
