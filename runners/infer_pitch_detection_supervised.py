@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
-import matplotlib.cm as cm
+import matplotlib
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -164,7 +164,7 @@ def create_prediction_image(
         align_corners=False,
     ).squeeze(0).squeeze(0)
     resized_scaled = resized * scale_values
-    rgba = cm.get_cmap("viridis")(resized_scaled)
+    rgba = matplotlib.colormaps.get_cmap("viridis")(resized_scaled)
     rgb = (rgba[..., :3] * 255).astype(np.uint8)
     return rgb
 
