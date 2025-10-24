@@ -20,12 +20,10 @@ from pitch_detection_supervised.train import create_model
 
 
 def load_checkpoint(
-    checkpoint_path: Path,
-    *,
-    model_name: Optional[str] = None,
-    model_config: Optional[dict] = None,
-    map_location: Optional[torch.device] = None,
-) -> Tuple[torch.nn.Module, dict]:
+        checkpoint_path: Path,
+        *,
+        map_location: Optional[torch.device] = None,
+) -> torch.nn.Module:
     """Load a supervised pitch detection model from a checkpoint."""
     payload = torch.load(checkpoint_path, map_location=map_location)
     state_dict: dict = payload.get("model_state_dict")
@@ -33,32 +31,19 @@ def load_checkpoint(
         raise KeyError("Checkpoint payload missing 'model_state_dict'.")
 
     config_dict = payload.get("config_dict")
-    payload_model_name = payload.get("model_class")
+    model_name = config_dict.get("model_name")
+    model_config = config_dict.get("model_config")
 
-    resolved_model_name = model_name or (
-        config_dict.get("model_name") if isinstance(config_dict, dict) else None
-    ) or payload_model_name
-    if resolved_model_name is None:
-        raise KeyError("Unable to determine model name from checkpoint. Provide model_name explicitly.")
-
-    resolved_model_config: dict = {}
-    if isinstance(config_dict, dict):
-        cfg = config_dict.get("model_config")
-        if isinstance(cfg, dict):
-            resolved_model_config.update(cfg)
-    if isinstance(model_config, dict):
-        resolved_model_config.update(model_config)
-
-    model = create_model(resolved_model_name, resolved_model_config)
+    model = create_model(model_name, model_config)
     model.load_state_dict(state_dict)
-    return model, payload
+    return model
 
 
 def load_audio_segment(
-    audio_path: Path,
-    *,
-    duration: Optional[float] = None,
-    device: Optional[torch.device] = None,
+        audio_path: Path,
+        *,
+        duration: Optional[float] = None,
+        device: Optional[torch.device] = None,
 ) -> Tuple[Tensor, int]:
     """Load an audio file and optionally crop it to a duration in seconds."""
     waveform, sample_rate = torchaudio.load(str(audio_path))
@@ -74,11 +59,11 @@ def load_audio_segment(
 
 
 def resample_for_encodec(
-    waveform: Tensor,
-    original_sample_rate: int,
-    encoder: EncodecModel,
-    *,
-    target_duration: Optional[float] = None,
+        waveform: Tensor,
+        original_sample_rate: int,
+        encoder: EncodecModel,
+        *,
+        target_duration: Optional[float] = None,
 ) -> Tuple[Tensor, int]:
     """Resample a waveform tensor to match the Encodec encoder expectations."""
     if waveform.dim() == 1:
@@ -99,8 +84,8 @@ def resample_for_encodec(
 
 
 def chunk_waveform(
-    waveform: Tensor,
-    chunk_samples: int,
+        waveform: Tensor,
+        chunk_samples: int,
 ) -> Iterable[Tuple[Tensor, int]]:
     """Yield chunks of the waveform padded to ``chunk_samples`` samples."""
     if chunk_samples <= 0:
@@ -116,11 +101,11 @@ def chunk_waveform(
 
 
 def encode_chunks_to_latents(
-    waveform: Tensor,
-    encoder: EncodecModel,
-    chunk_samples: int,
-    *,
-    device: torch.device,
+        waveform: Tensor,
+        encoder: EncodecModel,
+        chunk_samples: int,
+        *,
+        device: torch.device,
 ) -> Tuple[List[Tensor], List[int]]:
     """Convert audio chunks to Encodec pre-quant latents."""
     latents: List[Tensor] = []
@@ -136,10 +121,10 @@ def encode_chunks_to_latents(
 
 
 def run_model_on_latents(
-    model: torch.nn.Module,
-    latents: Sequence[Tensor],
-    valid_samples: Sequence[int],
-    chunk_samples: int,
+        model: torch.nn.Module,
+        latents: Sequence[Tensor],
+        valid_samples: Sequence[int],
+        chunk_samples: int,
 ) -> Tensor:
     """Run the pitch detection model on latent chunks and stitch predictions."""
     if len(latents) != len(valid_samples):
@@ -154,7 +139,6 @@ def run_model_on_latents(
             logits = model(inputs)
             probs = torch.sigmoid(logits).squeeze(0).detach().cpu()
             total_frames = probs.shape[-1]
-            frames = total_frames
             if valid < chunk_samples:
                 frames = max(1, int(round((valid / chunk_samples) * total_frames)))
                 probs = probs[..., :frames]
@@ -164,24 +148,14 @@ def run_model_on_latents(
 
 
 def create_prediction_image(
-    prediction: Tensor,
-    *,
-    duration_seconds: float,
-    pixels_per_second: int = 10,
-    vertical_pixels: int = 256,
+        prediction: Tensor,
+        *,
+        duration_seconds: float,
+        scale_values: float,
+        pixels_per_second: int = 50,
+        vertical_pixels: int = 128,
 ) -> np.ndarray:
     """Convert model predictions into a colored piano-roll style image."""
-    if duration_seconds <= 0:
-        raise ValueError("duration_seconds must be positive")
-    if pixels_per_second <= 0:
-        raise ValueError("pixels_per_second must be positive")
-    if vertical_pixels <= 0:
-        raise ValueError("vertical_pixels must be positive")
-
-    freq_bins, total_frames = prediction.shape
-    if total_frames == 0:
-        raise ValueError("Prediction tensor has zero time frames.")
-
     width = max(1, int(math.ceil(duration_seconds * pixels_per_second)))
     resized = F.interpolate(
         prediction.unsqueeze(0).unsqueeze(0),
@@ -189,8 +163,8 @@ def create_prediction_image(
         mode="bilinear",
         align_corners=False,
     ).squeeze(0).squeeze(0)
-    clipped = torch.clamp(resized, 0.0, 1.0).numpy()
-    rgba = cm.get_cmap("viridis")(clipped)
+    resized_scaled = resized * scale_values
+    rgba = cm.get_cmap("viridis")(resized_scaled)
     rgb = (rgba[..., :3] * 255).astype(np.uint8)
     return rgb
 
@@ -203,29 +177,31 @@ def save_image(array: np.ndarray, output_path: Path) -> None:
 
 
 def run_inference(
-    *,
-    checkpoint_path: Path,
-    audio_path: Path,
-    output_image_path: Path,
-    chunk_duration: float = 2.0,
-    analysis_duration: Optional[float] = None,
-    pixels_per_second: int = 10,
-    vertical_pixels: int = 256,
-    model_name: Optional[str] = None,
-    model_config: Optional[dict] = None,
-    device: Optional[str] = None,
-    encoder_bandwidth: float = 24.0,
+        *,
+        checkpoint: str,
+        audio_file: str,
+        output_image: str,
+        scale_values=2,
+        chunk_duration: float = 2.0,
+        analysis_duration: Optional[float] = None,
+        device: Optional[str] = None,
+        encoder_bandwidth: float = 24.0,
 ) -> Tensor:
     """Run a pitch detection model on an audio file and save a visualization."""
-    if chunk_duration <= 0:
-        raise ValueError("chunk_duration must be positive")
+    checkpoint_path = Path(checkpoint)
+    audio_file_path = Path(audio_file)
+    output_image_path = Path(output_image)
+
+    if not checkpoint_path.exists():
+        raise SystemError(f"Checkpoint does not exist {checkpoint}")
+    if not audio_file_path.exists():
+        raise SystemError(f"Audio file does not exist {audio_file}")
+
     model_device = torch.device(device) if device is not None else torch.device(
         "cuda" if torch.cuda.is_available() else "cpu"
     )
-    model, _ = load_checkpoint(
+    model = load_checkpoint(
         checkpoint_path,
-        model_name=model_name,
-        model_config=model_config,
         map_location=model_device,
     )
     model.to(model_device)
@@ -237,7 +213,7 @@ def run_inference(
     encoder.eval()
 
     waveform, original_sample_rate = load_audio_segment(
-        audio_path,
+        audio_file_path,
         duration=analysis_duration,
     )
     resampled, encoder_sample_rate = resample_for_encodec(
@@ -266,27 +242,25 @@ def run_inference(
     duration_seconds = total_valid_samples / encoder_sample_rate
     image_array = create_prediction_image(
         prediction,
+        scale_values=scale_values,
         duration_seconds=duration_seconds,
-        pixels_per_second=pixels_per_second,
-        vertical_pixels=vertical_pixels,
     )
     save_image(image_array, output_image_path)
     return prediction
 
 
 if __name__ == "__main__":
-    # Update these paths before running the script directly.
-    checkpoint = Path("path/to/checkpoint.pt")
-    audio_file = Path("path/to/audio.mp3")
-    output_image = Path("path/to/output.png")
+    # run_inference(
+    #     checkpoint="../resources/checkpoints/pitch_detection_supervised/token_transformer_3000.pt",
+    #     audio_file="../resources/Gentle on My Mind - The Petersens/Gentle on My Mind - The Petersens.mp3",
+    #     output_image="../resources/Gentle on My Mind - The Petersens/pitch_detection_supervised.png",
+    #     scale_values=100
+    #     # analysis_duration=30,
+    # )
 
-    if checkpoint.exists() and audio_file.exists():
-        run_inference(
-            checkpoint_path=checkpoint,
-            audio_path=audio_file,
-            output_image_path=output_image,
-        )
-    else:
-        raise SystemExit(
-            "Please edit runners/pitch_detection_inference.py with valid paths before executing."
-        )
+    run_inference(
+        checkpoint="../resources/checkpoints/pitch_detection_supervised/token_transformer_3000.pt",
+        audio_file="../resources/Phases - TWO LANES/Phases - TWO LANES.mp3",
+        output_image="../resources/Phases - TWO LANES/pitch_detection_supervised.png",
+        scale_values=100
+    )
