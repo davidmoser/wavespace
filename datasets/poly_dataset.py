@@ -40,19 +40,19 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
     """Dataset that renders asynchronous polyphonic mixtures on the fly."""
 
     def __init__(
-        self,
-        *,
-        n_samples: int,
-        freq_range: Sequence[float],
-        max_polyphony: int,
-        sr: int,
-        duration: float,
-        min_note_duration: float = 0.12,
-        label_sample_rate: float = 75.0,
-        label_centers_hz: Optional[Sequence[float]] = None,
-        label_bins: int = 128,
-        label_type: str = "power",
-        seed: Optional[int] = None,
+            self,
+            *,
+            n_samples: int,
+            freq_range: Sequence[float],
+            max_polyphony: int,
+            sr: int,
+            duration: float,
+            min_note_duration: float = 0.12,
+            label_sample_rate: float = 75.0,
+            label_centers_hz: Optional[Sequence[float]] = None,
+            label_bins: int = 128,
+            label_type: str = "power",
+            seed: Optional[int] = None,
     ) -> None:
         if n_samples <= 0:
             raise ValueError("n_samples must be positive")
@@ -107,18 +107,23 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
             raise IndexError("index out of range")
 
         seed = self._sample_seeds[index]
-        mix, f0s, samples = self._render_sample(seed)
+        mix, f0s, onsets, durations, samples = self._render_sample(seed)
 
         audio = torch.from_numpy(mix).to(dtype=torch.float32)
         audio = audio.unsqueeze(0)
 
-        label = self._build_label_tensor(f0s, samples)
+        if self.label_type == "power":
+            label = self._build_power_label(f0s, samples)
+        elif self.label_type == "activation":
+            label = self._build_activation_label(f0s, onsets, durations)
+        else:
+            raise RuntimeError(f"Unsupported label_type: {self.label_type}")
 
         return audio, label
 
     def _render_sample(
             self, seed: int
-    ) -> Tuple[np.ndarray, List[float], List[np.ndarray]]:
+    ) -> Tuple[np.ndarray, List[float], List[float], List[float], List[np.ndarray]]:
         rng_state = poly_utils.RNG.getstate()
         np_rng = poly_utils.NP_RNG
         try:
@@ -130,7 +135,7 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
                 poly_utils.log_uniform(self.freq_min, self.freq_max)
                 for _ in range(k)
             ]
-            mix, f0s, _, _, samples = poly_utils.render_poly_interval_async_freq(
+            mix, f0s, onsets, durations, samples = poly_utils.render_poly_interval_async_freq(
                 freqs,
                 self.sample_rate,
                 self.duration,
@@ -140,16 +145,7 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
             poly_utils.RNG.setstate(rng_state)
             poly_utils.NP_RNG = np_rng
 
-        return mix, f0s, samples
-
-    def _build_label_tensor(
-            self, f0s: List[float], samples: Sequence[np.ndarray]
-    ) -> Tensor:
-        if self.label_type == "power":
-            return self._build_power_label(f0s, samples)
-        if self.label_type == "activation":
-            return self._build_activation_label(f0s, samples)
-        raise RuntimeError(f"Unsupported label_type: {self.label_type}")
+        return mix, f0s, onsets, durations, samples
 
     def _build_power_label(
             self, f0s: List[float], samples: Sequence[np.ndarray]
@@ -171,37 +167,10 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
         return label
 
     def _build_activation_label(
-            self, f0s: List[float], samples: Sequence[np.ndarray]
+            self, f0s: List[float], onsets: List[float], durations: List[float]
     ) -> Tensor:
-        events = []
-        sr = float(self.sample_rate)
-        threshold = 0.1
-        for f0, sample in zip(f0s, samples):
-            if sample is None:
-                continue
-            sample_arr = np.asarray(sample, dtype=np.float32)
-            if sample_arr.size == 0:
-                continue
-
-            amplitude = np.sqrt(np.clip(sample_arr, 0.0, None))
-            active = amplitude > threshold
-            if not np.any(active):
-                continue
-
-            active_indices = np.flatnonzero(active)
-            splits = np.split(active_indices, np.where(np.diff(active_indices) > 1)[0] + 1)
-            for segment in splits:
-                if segment.size == 0:
-                    continue
-                start_idx = int(segment[0])
-                end_idx = int(segment[-1]) + 1
-                onset = float(start_idx / sr)
-                offset = float(end_idx / sr)
-                if offset <= onset:
-                    continue
-                if onset >= self.duration:
-                    continue
-                events.append((float(f0), max(0.0, onset), min(self.duration, offset)))
+        offsets = [onset + duration for onset, duration in zip(onsets, durations)]
+        events = zip(f0s, onsets, offsets)
 
         if not events:
             return torch.zeros(self._label_bins, self.label_frames, dtype=torch.float32)
@@ -214,7 +183,7 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
             dtype=torch.float32,
         )
 
-        return label.gt(0).to(dtype=torch.float32)
+        return label
 
     def _frequency_weights(self, freq_hz: float) -> List[Tuple[int, float]]:
         centers = self._label_centers
