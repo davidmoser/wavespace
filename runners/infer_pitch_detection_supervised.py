@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torchaudio
+import librosa
 from PIL import Image
 from encodec import EncodecModel
 from encodec.utils import convert_audio
@@ -164,24 +165,25 @@ def compute_cqt_representation(
     if waveform.dim() != 2:
         raise ValueError("waveform must have shape (channels, samples)")
 
-    mono = waveform.mean(dim=0, keepdim=True)
-    transform = torchaudio.transforms.CQT(
-        sample_rate=sample_rate,
+    mono = waveform.mean(dim=0)
+    mono_np = mono.to(torch.float32).cpu().numpy()
+    cqt = librosa.cqt(
+        mono_np,
+        sr=sample_rate,
         n_bins=n_bins,
         bins_per_octave=bins_per_octave,
         hop_length=hop_length,
         fmin=fmin,
     )
-    cqt = transform(mono)
-    magnitude = cqt.abs().squeeze(0)
-    log_magnitude = torch.log1p(magnitude)
-    log_magnitude = log_magnitude - log_magnitude.amin()
-    max_value = log_magnitude.amax()
+    magnitude = np.abs(cqt)
+    log_magnitude = np.log1p(magnitude)
+    log_magnitude = log_magnitude - log_magnitude.min()
+    max_value = log_magnitude.max()
     if max_value > 0:
         normalized = log_magnitude / max_value
     else:
-        normalized = torch.zeros_like(log_magnitude)
-    return normalized.to(torch.float32)
+        normalized = np.zeros_like(log_magnitude)
+    return torch.from_numpy(normalized.astype(np.float32))
 
 
 def create_prediction_image(
