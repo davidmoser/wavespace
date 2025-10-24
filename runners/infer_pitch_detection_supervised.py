@@ -147,24 +147,87 @@ def run_model_on_latents(
     return concatenated
 
 
+def compute_cqt_representation(
+        waveform: Tensor,
+        sample_rate: int,
+        *,
+        n_bins: int,
+        bins_per_octave: int,
+        hop_length: int,
+        fmin: float,
+) -> Tensor:
+    """Compute a normalized CQT magnitude representation for visualization."""
+    if hop_length <= 0:
+        raise ValueError("hop_length must be positive")
+    if waveform.dim() == 1:
+        waveform = waveform.unsqueeze(0)
+    if waveform.dim() != 2:
+        raise ValueError("waveform must have shape (channels, samples)")
+
+    mono = waveform.mean(dim=0, keepdim=True)
+    transform = torchaudio.transforms.CQT(
+        sample_rate=sample_rate,
+        n_bins=n_bins,
+        bins_per_octave=bins_per_octave,
+        hop_length=hop_length,
+        fmin=fmin,
+    )
+    cqt = transform(mono)
+    magnitude = cqt.abs().squeeze(0)
+    log_magnitude = torch.log1p(magnitude)
+    log_magnitude = log_magnitude - log_magnitude.amin()
+    max_value = log_magnitude.amax()
+    if max_value > 0:
+        normalized = log_magnitude / max_value
+    else:
+        normalized = torch.zeros_like(log_magnitude)
+    return normalized.to(torch.float32)
+
+
 def create_prediction_image(
         prediction: Tensor,
+        cqt_representation: Tensor,
         *,
         duration_seconds: float,
         scale_values: float,
         pixels_per_second: int = 50,
         vertical_pixels: int = 128,
+        cqt_vertical_pixels: int = 128,
+        separator_height: int = 2,
+        colormap: str = "viridis",
 ) -> np.ndarray:
-    """Convert model predictions into a colored piano-roll style image."""
+    """Convert predictions and CQT data into a stacked visualization."""
+    if separator_height < 0:
+        raise ValueError("separator_height must be non-negative")
+    if pixels_per_second <= 0:
+        raise ValueError("pixels_per_second must be positive")
+    if vertical_pixels <= 0 or cqt_vertical_pixels <= 0:
+        raise ValueError("vertical pixel counts must be positive")
     width = max(1, int(math.ceil(duration_seconds * pixels_per_second)))
-    resized = F.interpolate(
+
+    prediction_resized = F.interpolate(
         prediction.unsqueeze(0).unsqueeze(0),
         size=(vertical_pixels, width),
         mode="bilinear",
         align_corners=False,
     ).squeeze(0).squeeze(0)
-    resized_scaled = resized * scale_values
-    rgba = matplotlib.colormaps.get_cmap("viridis")(resized_scaled)
+    prediction_scaled = (prediction_resized * scale_values).clamp(0.0, 1.0)
+
+    cqt_resized = F.interpolate(
+        cqt_representation.unsqueeze(0).unsqueeze(0),
+        size=(cqt_vertical_pixels, width),
+        mode="bilinear",
+        align_corners=False,
+    ).squeeze(0).squeeze(0)
+    cqt_scaled = cqt_resized.clamp(0.0, 1.0)
+
+    if separator_height == 0:
+        stacked = torch.cat((prediction_scaled, cqt_scaled), dim=0)
+    else:
+        separator = torch.ones((separator_height, width), dtype=torch.float32)
+        stacked = torch.cat((prediction_scaled, separator, cqt_scaled), dim=0)
+
+    rgba = matplotlib.colormaps.get_cmap(colormap)(stacked.cpu().numpy())
     rgb = (rgba[..., :3] * 255).astype(np.uint8)
     return rgb
 
@@ -186,8 +249,17 @@ def run_inference(
         analysis_duration: Optional[float] = None,
         device: Optional[str] = None,
         encoder_bandwidth: float = 24.0,
+        prediction_vertical_pixels: int = 128,
+        cqt_bins: int = 84,
+        cqt_bins_per_octave: int = 12,
+        cqt_hop_length: int = 256,
+        cqt_fmin: float = 32.7,
+        cqt_vertical_pixels: int = 128,
+        separator_height: int = 2,
+        pixels_per_second: int = 50,
+        colormap: str = "viridis",
 ) -> Tensor:
-    """Run a pitch detection model on an audio file and save a visualization."""
+    """Run a pitch model on audio and save stacked prediction/CQT visualizations."""
     checkpoint_path = Path(checkpoint)
     audio_file_path = Path(audio_file)
     output_image_path = Path(output_image)
@@ -240,10 +312,25 @@ def run_inference(
     )
     total_valid_samples = sum(valid_samples)
     duration_seconds = total_valid_samples / encoder_sample_rate
+    effective_waveform = resampled[..., :total_valid_samples]
+    cqt_representation = compute_cqt_representation(
+        effective_waveform,
+        encoder_sample_rate,
+        n_bins=cqt_bins,
+        bins_per_octave=cqt_bins_per_octave,
+        hop_length=cqt_hop_length,
+        fmin=cqt_fmin,
+    )
     image_array = create_prediction_image(
         prediction,
+        cqt_representation,
         scale_values=scale_values,
         duration_seconds=duration_seconds,
+        pixels_per_second=pixels_per_second,
+        vertical_pixels=prediction_vertical_pixels,
+        cqt_vertical_pixels=cqt_vertical_pixels,
+        separator_height=separator_height,
+        colormap=colormap,
     )
     save_image(image_array, output_image_path)
     return prediction
