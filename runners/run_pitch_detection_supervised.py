@@ -3,8 +3,8 @@ from pitch_detection_supervised.train import single_run
 
 single_run(Configuration(
     # save
-    save=False,
-    save_file="checkpoints/pitch_detection_supervised/test.pt",
+    save=True,
+    save_file="../resources/checkpoints/pitch_detection_supervised/token_transformer_activation_3000.pt",
     # data and loader
     batch_size=16,
     num_workers=1,
@@ -13,7 +13,7 @@ single_run(Configuration(
 
     # optimization
     epochs=None,
-    steps=500,
+    steps=3000,
     lr=1e-3,
     weight_decay=0.02,
     max_grad_norm=1.0,
@@ -21,12 +21,6 @@ single_run(Configuration(
 
     # device and reproducibility
     device="cpu",  # None means "cuda if available else cpu"
-
-    # labels / bins
-    n_classes=128,
-    fmin_hz=100.0,
-    fmax_hz=10000.0,
-    time_frames=150,  # matches number of tokens
 
     # evaluation / logging cadence
     eval_interval=10,
@@ -42,7 +36,7 @@ single_run(Configuration(
     model_config={"seq_len": 150},
 
     # dataset
-    train_dataset_path="../resources/encodec_latents/poly_async_4",
+    train_dataset_path="../resources/encodec_latents/poly_async_activation",
     val_dataset_path=None,
     split_train_set=0.1
 ))

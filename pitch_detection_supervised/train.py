@@ -43,7 +43,6 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
     device = resolve_device(config.device)
 
-    centers_hz = config.centers_hz()
     train_dataset, val_dataset = _load_datasets(config)
     train_loader = _create_loader(train_dataset, config.batch_size, config.num_workers)
     val_loader = _create_loader(val_dataset, config.batch_size, config.num_workers)
@@ -87,7 +86,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             scheduler.step()
 
             with torch.no_grad():
-                _ = _compute_batch_metrics(logits, targets, centers_hz)  # TODO: metrics to track
+                _ = _compute_batch_metrics(logits, targets)  # TODO: metrics to track
 
             current_lr = optimizer.param_groups[0]["lr"]
             log_to_wandb(
@@ -104,7 +103,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             should_eval = current_step % config.eval_interval == 0
             if should_eval and val_loader is not None:
                 model.eval()
-                val_metrics = evaluate(model, val_loader, centers_hz)
+                val_metrics = evaluate(model, val_loader)
                 val_loss = val_metrics.get("loss", float("inf"))
                 print(
                     f"Validation @ Epoch {epoch} Step {current_step}: "

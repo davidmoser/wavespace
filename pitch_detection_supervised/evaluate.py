@@ -24,7 +24,7 @@ class _LoggingSample:
 
 
 @torch.no_grad()
-def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[float]) -> Dict[str, float]:
+def evaluate(model: Module, data_loader: Optional[DataLoader]) -> Dict[str, float]:
     if data_loader is None:
         return {"loss": math.nan}
 
@@ -46,9 +46,7 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
         total_loss += loss.sum()
         count += 1
 
-        _ = _compute_batch_metrics(
-            logits, targets, centers_hz
-        )
+        _ = _compute_batch_metrics(logits, targets)
 
     metrics = {
         "loss": (total_loss / count).item(),
@@ -59,7 +57,6 @@ def evaluate(model: Module, data_loader: Optional[DataLoader], centers_hz: List[
 def _compute_batch_metrics(
         logits: Tensor,
         target: Tensor,
-        space_centers: List[float],
 ) -> Tuple[Tensor, Tensor, Tensor]:
     pass  # TODO
 

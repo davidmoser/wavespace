@@ -1,19 +1,20 @@
 {
   "input": {
-    "config": {
-      "batch_size": 32,
-      "epochs": 5,
-      "latent_dim": 128,
-      "seq_len": 75
+    "save": false,
+    "batch_size": 16,
+    "num_workers": 1,
+    "seq_len": 150,
+    "sample_duration": 2.0,
+    "steps": 3000,
+    "lr": 1e-3,
+    "weight_decay": 0.02,
+    "device": "cuda",
+    "eval_interval": 10,
+    "model_name": "TokenTransformer",
+    "model_config": {
+      "seq_len": 150
     },
-    "train_data_path": "/runpod-volume/pitch_supervised_train.pt",
-    "val_data_path": "/runpod-volume/pitch_supervised_val.pt",
-    "model": {
-      "target": "pitch_detection_supervised.dilated_tcn.DilatedTCN",
-      "params": {
-        "hidden_dim": 256,
-        "use_third_block": true
-      }
-    }
+    "train_dataset_path": "/runpod-volume/encodec_latents/poly_async_activation",
+    "split_train_set": 0.1
   }
 }

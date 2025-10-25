@@ -29,8 +29,6 @@ class Configuration:
 
     # labels / bins
     n_classes: int = 128
-    fmin_hz: float = 55.0
-    fmax_hz: float = 1760.0
     time_frames: int = 75
 
     # evaluation cadence
@@ -45,8 +43,3 @@ class Configuration:
     val_dataset_path: str | None = None
     split_train_set: Optional[float] = None
 
-    def centers_hz(self) -> List[float]:
-        log_min = math.log(self.fmin_hz)
-        log_max = math.log(self.fmax_hz)
-        step = (log_max - log_min) / (self.n_classes - 1)
-        return [math.exp(log_min + step * i) for i in range(self.n_classes)]
