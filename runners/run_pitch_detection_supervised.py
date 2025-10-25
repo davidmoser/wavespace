@@ -17,7 +17,7 @@ single_run(Configuration(
     lr=1e-3,
     weight_decay=0.02,
     max_grad_norm=1.0,
-    warmup_steps=10,
+    warmup_fraction=0.03,
 
     # device and reproducibility
     device="cpu",  # None means "cuda if available else cpu"

@@ -7,7 +7,7 @@ import wandb
 from torch import Tensor
 
 
-def create_warmup_cosine_lr(steps_per_epoch, warmup_steps, epochs=None, steps=None):
+def create_warmup_cosine_lr(steps_per_epoch, warmup_fraction, epochs=None, steps=None):
     if epochs and steps:
         raise ValueError("epochs and steps cannot both be specified")
 
@@ -17,6 +17,8 @@ def create_warmup_cosine_lr(steps_per_epoch, warmup_steps, epochs=None, steps=No
     else:
         eff_steps = steps
         eff_epochs = math.ceil(steps / steps_per_epoch)
+
+    warmup_steps = int(eff_steps * warmup_fraction)
 
     def lr_lambda(step: int) -> float:
         if warmup_steps > 0 and step < warmup_steps:
