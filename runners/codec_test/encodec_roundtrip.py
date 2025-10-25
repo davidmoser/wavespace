@@ -37,6 +37,8 @@ def encodec_roundtrip(
         model_name: str = "24khz",
         output_format: str = "wav",
         device: Optional[str] = None,
+        normalize: bool = True,
+        normalize_segment: float = None,
 ) -> Path:
     """Encode and decode an audio file with Encodec.
 
@@ -68,6 +70,11 @@ def encodec_roundtrip(
     waveform, sample_rate = torchaudio.load(str(input_path))
 
     model = _load_model(model_name, device, bandwidth)
+    model.normalize = normalize
+    if not normalize:
+        model.segment = None  # single model call instead of call for each segment
+    elif normalize_segment:
+        model.segment = normalize_segment
     model.eval()
 
     # Prepare audio for the model
@@ -93,7 +100,7 @@ def encodec_roundtrip(
         waveform.shape[0],
     )
 
-    suffix = f"_encodec_{model_name}_{bandwidth}kbps"
+    suffix = f"_encodec_{model_name}_{bandwidth}kbps_{sample_rate}_{f'norm{normalize_segment}' if normalize else 'unnorm'}"
     output_path = input_path.with_name(
         f"{input_path.stem}{suffix}.{output_format}"
     )
@@ -107,15 +114,17 @@ def encodec_roundtrip(
 
 
 if __name__ == "__main__":
-    input_file = Path("../resources/encodec_latents/samples/polyphony_samples/0023_k5.wav")
+    input_file = Path("../../resources/encodec_latents/samples/polyphony_samples/0023_k5.wav")
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
     result_path = encodec_roundtrip(
         input_file,
         bandwidth=24,
-        model_name="48khz",
+        model_name="24khz",
         output_format="wav",
         device=None,
+        normalize=True,
+        normalize_segment=0.01
     )
     print(f"Saved decoded audio to {result_path}")
