@@ -40,7 +40,7 @@ def create_latent_store(
         device: Optional[torch.device] = None,
         samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
         latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]] = None,
-        normalized: bool = False,
+        normalize: Optional[bool] = None,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
@@ -65,6 +65,9 @@ def create_latent_store(
             latents, item)`` immediately after encoding each sample. This can be
             used by tests to inspect the generated latents without modifying the
             storage pipeline.
+        normalize: Optional flag indicating whether to scale normalize the audio
+            samples within segments (24kHz model is unnormalized by default,
+            48kHz model is normalized within 1s segments by default)
     """
     total_samples = len(dataset)  # type: ignore[arg-type]
 
@@ -78,6 +81,8 @@ def create_latent_store(
     model.set_target_bandwidth(target_bandwidth)
     model = model.to(device)
     model.eval()
+
+    eff_normalize = normalize if normalize is not None else model.normalize
 
     shard_count = math.ceil(total_samples / samples_per_shard)
     shard_pad = max(3, len(str(shard_count - 1)))
@@ -135,7 +140,7 @@ def create_latent_store(
                     resampled = resampled.unsqueeze(0).to(device)
 
                     payload: Dict[str, Any] = {}
-                    if normalized:
+                    if eff_normalize:
                         mono = resampled.mean(dim=1, keepdim=True)
                         volume = mono.pow(2).mean(dim=2, keepdim=True).sqrt()
                         scale = 1e-8 + volume

@@ -2,14 +2,13 @@ from datasets.create_latent_store import create_latent_store
 from datasets.poly_dataset import PolyphonicAsyncDataset
 
 duration = 2.0
-sampling_rate = 48000
+sampling_rate = 24000
 min_freq = 50.0
 max_freq = 5000.0
-num_samples = 100
+num_samples = 10000
 max_polyphony = 10
 min_note_duration = 0.12
 label_type = "activation"
-normalized = label_type != "activation"
 
 dataset = PolyphonicAsyncDataset(
     n_samples=num_samples,
@@ -23,7 +22,7 @@ dataset = PolyphonicAsyncDataset(
 
 create_latent_store(
     dataset,
-    dataset_path="../resources/encodec_latents/poly_async_bandw_test",
+    dataset_path="../resources/encodec_latents/poly_async_activation",
     dataset_sample_rate=sampling_rate,
     metadata={
         "dataset": dataset.__class__.__name__,
@@ -36,10 +35,8 @@ create_latent_store(
             "max_polyphony": max_polyphony,
             "min_note_duration": min_note_duration,
             "label_type": label_type,
-            "normalized": normalized,
         },
     },
-    normalized=normalized,
     # sample_rate: Optional[int] = None,
     # device: Optional[torch.device] = None,
     # encoder: Optional["EncodecModel"] = None,

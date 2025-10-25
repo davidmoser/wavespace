@@ -255,7 +255,7 @@ def export_store_samples(
 if __name__ == "__main__":
     # build_dataset_poly_async(out_dir="../resources/polyphony_samples", n_samples=50, duration=3, max_polyphony=5)
     export_store_samples(
-        store_path="../resources/encodec_latents/poly_async_bandw_test",
-        destination="../resources/encodec_latents/samples/bandw_test",
+        store_path="../resources/encodec_latents/poly_async_power",
+        destination="../resources/encodec_latents/samples/poly_async_power",
         sample_count=30,
     )

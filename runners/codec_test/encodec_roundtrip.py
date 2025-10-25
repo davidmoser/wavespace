@@ -100,7 +100,7 @@ def encodec_roundtrip(
         waveform.shape[0],
     )
 
-    suffix = f"_encodec_{model_name}_{bandwidth}kbps_{sample_rate}_{f'norm{normalize_segment}' if normalize else 'unnorm'}"
+    suffix = f"_encodec_{model_name}_{bandwidth}kbps_{f'norm{normalize_segment}' if normalize else 'unnorm'}"
     output_path = input_path.with_name(
         f"{input_path.stem}{suffix}.{output_format}"
     )
@@ -118,13 +118,15 @@ if __name__ == "__main__":
     if not input_file.exists():
         raise FileNotFoundError(f"Input file not found: {input_file}")
 
+    # The 24khz model is optimized for unnormalized encoding
+    # The 48khz model is optimized for normalized encoding
     result_path = encodec_roundtrip(
         input_file,
         bandwidth=24,
-        model_name="24khz",
+        model_name="48khz",
         output_format="wav",
         device=None,
         normalize=True,
-        normalize_segment=0.01
+        normalize_segment=.1
     )
     print(f"Saved decoded audio to {result_path}")
