@@ -1,9 +1,10 @@
+import json
 import subprocess
+import sys
 from typing import Any
 
 import runpod
 
-import pitch_detection_supervised.train as train
 from pitch_detection_supervised.configuration import Configuration
 
 def handler(event: dict[str, Any]) -> str:
@@ -21,8 +22,11 @@ def handler(event: dict[str, Any]) -> str:
     else:
         cfg = Configuration(**input)
         print(f"Single run with configuration: {cfg}")
-        train.single_run(cfg)
-        return "Run finished"
+        rc = subprocess.run(
+            [sys.executable, "/single_run.py", json.dumps(input)],
+            check=False,
+        ).returncode
+        return f"exit_code {rc}"
 
 
 if __name__ == '__main__':
