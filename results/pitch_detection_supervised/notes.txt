@@ -1,0 +1,27 @@
+hp optimization for transformer model
+=====================================
+batch size:
+- varied batch size in manual runs
+- huge variation in runtime for same batch size, probably not getting consistent hardware
+- larger batch size => more samples per time
+- smaller batch size => better regularization
+- batch size 16 => good loss, slow
+- batch size 8k => loss exploded because very few steps, learning landscape
+- batch size 128 good loss and fast
+sweep1:
+- varying LR, weight decay, dropout
+- randomness is high
+- slight increase in loss as decay and dropout get larger, but lost in noise
+- nice dependency on lr, optimal lr 0.004
+sweep2:
+- only varying weight decay, lr at 0.004, dropout at 0
+- again weight decay 0 is best
+sweep3
+- only varying dropout, lr at 0.004, weight decay at 0
+- again dropout 0 is best
+run4
+- run some runs to 1000 steps with parameters found (peach-sweep-1 and after)
+- good train loss 0.15 but validation loss only 0.31
+- 300 step runs weren't showing large val/train loss separation
+- doing runs with non-zero dropout and weight decay => wd 0.05 and do 0.1 give 0.26/0.18 respectively
+- higher wd/do didn't improve result

@@ -144,7 +144,6 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
         payload = {
             "model_state_dict": best_state,
             "model_class": model.__class__.__name__,
-            "centers_hz": config.centers_hz(),
             "config_dict": asdict(config),
         }
         torch.save(payload, save_path)

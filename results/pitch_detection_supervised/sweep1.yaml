@@ -1,0 +1,52 @@
+id: i8dvoav2
+method: random
+metric:
+  goal: minimize
+  name: val/loss
+parameters:
+  batch_size:
+    value: 128
+  device:
+    value: cuda
+  eval_interval:
+    value: 30
+  lr:
+    distribution: log_uniform_values
+    max: 0.01
+    min: 0.001
+  model_config:
+    parameters:
+      dropout:
+        values:
+          - 0
+          - 0.1
+          - 0.2
+      seq_len:
+        value: 150
+  model_name:
+    value: TokenTransformer
+  num_workers:
+    value: 8
+  sample_duration:
+    value: 2
+  save:
+    value: false
+  save_file:
+    value: /runpod-volume/checkpoints/pitch_detection_supervised.pt
+  seq_len:
+    value: 150
+  split_train_set:
+    value: 0.1
+  steps:
+    value: 300
+  train_dataset_path:
+    value: /runpod-volume/encodec_latents/poly_async_activation
+  warmup_fraction:
+    value: 0.03
+  weight_decay:
+    values:
+      - 0
+      - 0.01
+      - 0.05
+program: sweep_run.py
+run_cap: 50
