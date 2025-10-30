@@ -19,8 +19,8 @@ class TokenTransformer(nn.Module):
         dropout: Dropout rate applied within the Transformer.
 
     Shapes:
-        * x: ``(batch, time, latent_dim)``
-        * output: ``(batch, time, n_classes)``
+        * x: ``(batch, latent_dim, time)``
+        * output: ``(batch, n_classes, time)``
     """
 
     def __init__(
