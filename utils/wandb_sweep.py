@@ -25,13 +25,13 @@ def _format_values(value: Any, format_kwargs: dict[str, Any]) -> Any:
 
 
 def run_wandb_sweep(
-    config_path: str,
-    *,
-    project: str,
-    sweep_namespace: str,
-    endpoint: str,
-    is_runpod: bool = True,
-    num_workers: Optional[int] = None,
+        config_path: str,
+        *,
+        project: str,
+        sweep_namespace: str,
+        endpoint: str,
+        is_runpod: bool = True,
+        num_workers: Optional[int] = None,
 ) -> tuple[str, list[str]]:
     """Launch a W&B sweep and optionally trigger RunPod jobs."""
 
@@ -95,5 +95,5 @@ def _record_sweep_details(*, sweep_id: str, config_directory: Path, config_filen
     with sweeps_file.open("a", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         if write_header:
-            writer.writerow(["id", "file", "timestamp"])
-        writer.writerow([sweep_hash, config_filename, timestamp])
+            writer.writerow(["file", "id", "timestamp"])
+        writer.writerow([config_filename, sweep_hash, timestamp])

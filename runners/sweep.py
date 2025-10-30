@@ -16,7 +16,7 @@ from utils import run_wandb_sweep
 # )
 
 run_wandb_sweep(
-    config_path="../sweep_configs/pitch_detection_supervised_activation/sweep_do.yaml",
+    config_path="../sweep_configs/pitch_detection_supervised_power/sweep_lr_wd_do.yaml",
     project="pitch-detection-supervised",
     sweep_namespace="david-moser-ggg/pitch-detection-supervised",
     endpoint="9hr07oet4wfndt",
