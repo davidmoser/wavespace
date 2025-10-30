@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, MutableMapping, Optional, Sequence
 
@@ -44,6 +46,12 @@ def run_wandb_sweep(
     wandb.login(key=wandb_api_key)
     sweep_id = wandb.sweep(sweep=sweep_cfg, project=project)
 
+    _record_sweep_details(
+        sweep_id=sweep_id,
+        config_directory=config_file.parent,
+        config_filename=config_file.name,
+    )
+
     job_ids: list[str] = []
     if is_runpod:
         runpod_api_key = os.environ["RUNPOD_API_KEY"]
@@ -73,3 +81,19 @@ def run_wandb_sweep(
             job_ids.append(job_id)
 
     return sweep_id, job_ids
+
+
+def _record_sweep_details(*, sweep_id: str, config_directory: Path, config_filename: str) -> None:
+    sweeps_file = config_directory / "sweeps.csv"
+    write_header = not sweeps_file.exists()
+
+    sweeps_file.parent.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    sweep_hash = sweep_id.split("/")[-1]
+
+    with sweeps_file.open("a", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        if write_header:
+            writer.writerow(["id", "file", "timestamp"])
+        writer.writerow([sweep_hash, config_filename, timestamp])
