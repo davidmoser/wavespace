@@ -30,7 +30,7 @@ def run_wandb_sweep(
     project: str,
     sweep_namespace: str,
     endpoint: str,
-    is_runpod: bool,
+    is_runpod: bool = True,
     num_workers: Optional[int] = None,
 ) -> tuple[str, list[str]]:
     """Launch a W&B sweep and optionally trigger RunPod jobs."""
