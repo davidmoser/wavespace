@@ -97,20 +97,20 @@ def plot_parameter_vs_loss(
 
 
 if __name__ == "__main__":
-    sweep_path = "david-moser-ggg/pitch-detection-supervised/sweeps/yd2cb8ct"
+    sweep_path = "david-moser-ggg/pitch-detection-supervised/sweeps/v79ns7uy"
     plot_parameter_vs_loss(
         sweep_path=sweep_path,
         parameter_key="lr",
         use_log_scaling=True,
         loss_key="val/loss",
-        out="../results/pitch_detection_supervised_power/power_sweep2_lr_loss.png",
+        out="../results/pitch_detection_supervised_power/power_sweep6_lr_loss.png",
     )
     plot_parameter_vs_loss(
         sweep_path=sweep_path,
         parameter_key="dropout",
         use_log_scaling=False,
         loss_key="val/loss",
-        out="../results/pitch_detection_supervised_power/power_sweep2_do_loss.png",
+        out="../results/pitch_detection_supervised_power/power_sweep6_do_loss.png",
         param_from_model_config=True,
     )
     plot_parameter_vs_loss(
@@ -118,5 +118,5 @@ if __name__ == "__main__":
         parameter_key="weight_decay",
         use_log_scaling=False,
         loss_key="val/loss",
-        out="../results/pitch_detection_supervised_power/power_sweep2_wd_loss.png",
+        out="../results/pitch_detection_supervised_power/power_sweep6_wd_loss.png",
     )
