@@ -17,24 +17,17 @@ import numpy as np
 import wandb
 
 
-def fit_parabola(lrs: np.ndarray, losses: np.ndarray, use_log_scaling: bool) -> Tuple[np.ndarray, float]:
+def fit_parabola(params: np.ndarray, losses: np.ndarray, use_log_scaling: bool) -> Tuple[np.ndarray, float]:
     """
     Fit y ~ a*(log10(lr))^2 + b*(log10(lr)) + c. log10 optional
     Returns (coeffs a,b,c), x_vertex (in log10 space), lr_star (10**x_vertex).
     """
-    if use_log_scaling:
-        x = np.log10(lrs)
-    else:
-        x = lrs
+    x = np.log10(params) if use_log_scaling else params
     coeffs = np.polyfit(x, losses, deg=2)  # [a, b, c]
     a, b, c = coeffs
-    if a == 0:
-        idx = int(np.argmin(losses))
-        return coeffs, lrs[idx]
-    lr_star = -b / (2 * a)
-    if use_log_scaling:
-        lr_star = float(10 ** lr_star)
-    return coeffs, lr_star
+    param_star = -b / (2 * a)
+    param_star = 10 ** param_star if use_log_scaling else param_star
+    return coeffs, param_star
 
 
 def plot_parameter_vs_loss(
@@ -60,7 +53,8 @@ def plot_parameter_vs_loss(
             parameter = run.config[parameter_key]
         if parameter is None or (parameter <= 0 and use_log_scaling) or not math.isfinite(parameter):
             continue
-        loss = run.history(keys=[loss_key])[-20:][loss_key].mean()
+        # loss = run.history(keys=[loss_key])[-20:][loss_key].mean()
+        loss = run.summary[loss_key]
         if loss is None or not math.isfinite(loss):
             continue
         xs.append(parameter)
@@ -72,17 +66,14 @@ def plot_parameter_vs_loss(
     coeffs, parameter_star = fit_parabola(params, losses, use_log_scaling)
 
     # Prepare smooth curve over observed LR range in log space
-    if use_log_scaling:
-        x_min, x_max = np.log10(params).min(), np.log10(params).max()
-    else:
-        x_min, x_max = params.min(), params.max()
-    x_grid = np.linspace(x_min, x_max, 400)
+    x_min, x_max = params.min(), params.max()
+    fit_grid = np.linspace(np.log10(x_min), np.log10(x_max)) if use_log_scaling else np.linspace(x_min, x_max, 400)
     a, b, c = coeffs
-    y_fit = a * x_grid ** 2 + b * x_grid + c
+    y_fit = a * fit_grid ** 2 + b * fit_grid + c
     if use_log_scaling:
-        param_grid = 10 ** x_grid
+        param_grid = 10 ** fit_grid
     else:
-        param_grid = x_grid
+        param_grid = fit_grid
 
     # Plot
     param_text = f"log10({parameter_key})" if use_log_scaling else parameter_key
@@ -106,25 +97,26 @@ def plot_parameter_vs_loss(
 
 
 if __name__ == "__main__":
-    # plot_parameter_vs_loss(
-    #     sweep_path="david-moser-ggg/pitch-detection-supervised/sweeps/9xq1acmj",
-    #     parameter_key="lr",
-    #     use_log_scaling=True,
-    #     loss_key="train/loss",
-    #     out="../results/pitch_detection_supervised/transformer_lr_loss_updates.png",
-    # )
+    sweep_path = "david-moser-ggg/pitch-detection-supervised/sweeps/yd2cb8ct"
     plot_parameter_vs_loss(
-        sweep_path="david-moser-ggg/pitch-detection-supervised/sweeps/9xq1acmj",
+        sweep_path=sweep_path,
+        parameter_key="lr",
+        use_log_scaling=True,
+        loss_key="val/loss",
+        out="../results/pitch_detection_supervised_power/power_sweep2_lr_loss.png",
+    )
+    plot_parameter_vs_loss(
+        sweep_path=sweep_path,
         parameter_key="dropout",
         use_log_scaling=False,
-        loss_key="train/loss",
-        out="../results/pitch_detection_supervised/sweep3_dropout_loss.png",
+        loss_key="val/loss",
+        out="../results/pitch_detection_supervised_power/power_sweep2_do_loss.png",
         param_from_model_config=True,
     )
-    # plot_parameter_vs_loss(
-    #     sweep_path="david-moser-ggg/pitch-detection-supervised/sweeps/9xq1acmj",
-    #     parameter_key="weight_decay",
-    #     use_log_scaling=False,
-    #     loss_key="train/loss",
-    #     out="../results/pitch_detection_supervised/sweep2_weight_decay_loss.png",
-    # )
+    plot_parameter_vs_loss(
+        sweep_path=sweep_path,
+        parameter_key="weight_decay",
+        use_log_scaling=False,
+        loss_key="val/loss",
+        out="../results/pitch_detection_supervised_power/power_sweep2_wd_loss.png",
+    )
