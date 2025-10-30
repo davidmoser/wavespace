@@ -1,0 +1,21 @@
+hp optimization for transformer model
+=====================================
+batch size:
+- 128 from activation sweeps
+sweep1:
+- varying LR randomly, weight decay 3 values, dropout 3 values
+- 300 steps
+- randomness is high
+- best values: LR=5e-3, WD=2e-2, DO=0
+sweep2:
+- varying LR, weight decay, dropout, all randomly
+- 300 steps
+- best values: LR=7e-3, WD=3e-2, DO=0
+run3:
+- LR=6e-3, WD=3e-2, DO=0
+- 1000 steps
+- validation loss doesn't flatten off, stays as training loss
+run4:
+- same settings as run3, but higher steps
+- steps 2000 => consistently get huge spike after 1/3 of steps
+- steps 1500 => get nice loss, but last steps quite unstable

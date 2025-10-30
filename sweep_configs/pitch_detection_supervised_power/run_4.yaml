@@ -1,0 +1,41 @@
+method: random
+metric:
+  goal: minimize
+  name: val/loss
+parameters:
+  batch_size:
+    value: 128
+  device:
+    value: cuda
+  eval_interval:
+    value: 30
+  lr:
+    value: 0.006
+  model_config:
+    parameters:
+      dropout:
+        value: 0
+      seq_len:
+        value: 150
+  model_name:
+    value: TokenTransformer
+  num_workers:
+    value: 8
+  sample_duration:
+    value: 2
+  save:
+    value: false
+  seq_len:
+    value: 150
+  split_train_set:
+    value: 0.1
+  steps:
+    value: 1500
+  train_dataset_path:
+    value: /runpod-volume/encodec_latents/poly_async_power
+  warmup_fraction:
+    value: 0.03
+  weight_decay:
+    value: 0.03
+program: sweep_run.py
+run_cap: 1
