@@ -1,0 +1,43 @@
+program: sweep_run.py
+method: random
+metric:
+  name: val/loss
+  goal: minimize
+run_cap: 1
+parameters:
+  save:
+    value: false
+  save_file:
+    value: "{volume}/checkpoints/pitch_detection_supervised.pt"
+  batch_size:
+    value: 128
+  num_workers:
+    value: 8
+  seq_len:
+    value: 150
+  sample_duration:
+    value: 2.0
+  steps:
+    value: 1000
+  lr:
+    value: 0.004
+  weight_decay:
+    value: 0.1
+  warmup_fraction:
+    value: 0.03
+  device:
+    value: cuda
+  eval_interval:
+    value: 30
+  model_name:
+    value: TokenTransformer
+  model_config:
+    parameters:
+      seq_len:
+        value: 150
+      dropout:
+        value: 0.2
+  train_dataset_path:
+    value: "{volume}/encodec_latents/poly_async_activation"
+  split_train_set:
+    value: 0.1
