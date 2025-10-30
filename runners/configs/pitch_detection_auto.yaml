@@ -1,0 +1,51 @@
+program: sweep_run.py
+method: random
+metric:
+  name: loss
+  goal: minimize
+run_cap: 1
+parameters:
+  lr:
+    value: 1.0e-07
+  lr_decay:
+    value: 0.1
+  lambda_init:
+    value: 0.2
+  lambda1:
+    value: 1.0e-08
+  lambda2:
+    value: 2
+  batch:
+    value: 128
+  epochs:
+    value: 5
+  base_ch:
+    value: 16
+  out_ch:
+    value: 32
+  force_f0:
+    value: true
+  init_f0:
+    value: point
+  train_pitch_det_only:
+    value: false
+  pitch_autoenc_file:
+    value: "{volume}/checkpoints/pitch_autoencoder_v10_100epochs_fine.pt"
+  kernel_f_len:
+    value: 128
+  kernel_t_len:
+    value: 1
+  kernel_random:
+    value: false
+  kernel_value:
+    value: 0.01
+  spec_file:
+    value: "{volume}/logspectrograms.pt"
+  save_model:
+    value: true
+  save_file:
+    value: "{volume}/checkpoints/pitch_autoencoder_v10_100epochs_fine2.pt"
+  pitch_det_version:
+    value: v3
+  synth_net_version:
+    value: v1

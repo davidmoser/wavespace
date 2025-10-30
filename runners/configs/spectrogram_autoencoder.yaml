@@ -1,0 +1,28 @@
+program: sweep_run.py
+method: random
+metric:
+  name: loss
+  goal: minimize
+run_cap: 30
+parameters:
+  lr:
+    min: 0.001
+    max: 0.1
+    distribution: log_uniform_values
+  lr_decay:
+    values:
+      - 0.9
+  batch:
+    value: 128
+  version:
+    value: v5
+  epochs:
+    value: 1
+  base_ch:
+    values:
+      - 4
+      - 16
+  spec_file:
+    value: "{volume}/spectrograms.pt"
+  save_model:
+    value: false
