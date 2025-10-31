@@ -170,6 +170,13 @@ def single_run(cfg: Configuration):
     train(cfg)
 
 
+def single_run_resume(run_id: str) -> None:
+    login_to_wandb()
+    wandb.init(project=PROJECT_NAME, id=run_id, resume="allow")
+    cfg = Configuration(**wandb.config.as_dict())
+    train(cfg)
+
+
 def _load_datasets(config: Configuration) -> Tuple[Dataset, Optional[Dataset]]:
     if config.split_train_set is not None and config.val_dataset_path:
         raise ValueError("Cannot use a validation dataset path and split the training dataset simultaneously.")
