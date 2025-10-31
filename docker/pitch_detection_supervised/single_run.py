@@ -1,14 +1,11 @@
-import json
 import sys
 
-from pitch_detection_supervised.configuration import Configuration
-from pitch_detection_supervised.train import single_run
+from pitch_detection_supervised.train import single_run_resume
 
 
 def main():
-    cfg_data = json.loads(sys.argv[1])
-    cfg = Configuration(**cfg_data)
-    single_run(cfg)
+    run_id = sys.argv[1]
+    single_run_resume(run_id)
 
 
 if __name__ == "__main__":
