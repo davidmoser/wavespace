@@ -1,20 +1,5 @@
 {
   "input": {
-    "save": false,
-    "batch_size": 16,
-    "num_workers": 1,
-    "seq_len": 150,
-    "sample_duration": 2,
-    "steps": 50,
-    "lr": 0.02,
-    "weight_decay": 0.02,
-    "device": "cpu",
-    "eval_interval": 10,
-    "model_name": "TokenTransformer",
-    "model_config": {
-      "seq_len": 150
-    },
-    "train_dataset_path": "/resources/encodec_latents/poly_async_activation",
-    "split_train_set": 0.1
+    "run_id": "3guaww0v"
   }
 }

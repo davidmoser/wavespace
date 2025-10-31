@@ -45,32 +45,30 @@ def run_wandb_run(
     wandb.login(key=wandb_api_key)
 
     run = wandb.init(project=project, config=config_data)
-    try:
-        run_id = run.id
-        run_url = run.url or f"https://wandb.ai/{run_namespace}/runs/{run_id}"
 
-        _record_run_details(
-            run_id=run_id,
-            config_directory=config_file.parent,
-            config_filename=config_file.name,
+    run_id = run.id
+    run_url = run.url or f"https://wandb.ai/{run_namespace}/runs/{run_id}"
+
+    _record_run_details(
+        run_id=run_id,
+        config_directory=config_file.parent,
+        config_filename=config_file.name,
+    )
+
+    job_id: Optional[str] = None
+    if is_runpod:
+        runpod_api_key = os.environ["RUNPOD_API_KEY"]
+        headers = {"Authorization": f"Bearer {runpod_api_key}"}
+        payload = {"input": {"run_id": run_id}}
+
+        response = requests.post(
+            f"https://api.runpod.ai/v2/{endpoint}/run",
+            json=payload,
+            headers=headers,
         )
-
-        job_id: Optional[str] = None
-        if is_runpod:
-            runpod_api_key = os.environ["RUNPOD_API_KEY"]
-            headers = {"Authorization": f"Bearer {runpod_api_key}"}
-            payload = {"input": {"run_id": run_id}}
-
-            response = requests.post(
-                f"https://api.runpod.ai/v2/{endpoint}/run",
-                json=payload,
-                headers=headers,
-            )
-            response.raise_for_status()
-            job_id = response.json()["id"]
-            print(f"Job ID: {job_id}")
-    finally:
-        wandb.finish()
+        response.raise_for_status()
+        job_id = response.json()["id"]
+        print(f"Job ID: {job_id}")
 
     return run_id, run_url, job_id
 

@@ -1,0 +1,17 @@
+batch_size: 128
+device: cuda
+eval_interval: 30
+lr: 0.006
+model_config:
+  dropout: 0
+  seq_len: 150
+model_name: TokenTransformer
+num_workers: 8
+sample_duration: 2
+save: false
+seq_len: 150
+split_train_set: 0.1
+steps: 1500
+train_dataset_path: /runpod-volume/encodec_latents/poly_async_power
+warmup_fraction: 0.03
+weight_decay: 0.03

@@ -172,7 +172,7 @@ def single_run(cfg: Configuration):
 
 def single_run_resume(run_id: str) -> None:
     login_to_wandb()
-    wandb.init(project=PROJECT_NAME, id=run_id, resume="allow")
+    wandb.init(project=PROJECT_NAME, id=run_id, resume="must")
     cfg = Configuration(**wandb.config.as_dict())
     train(cfg)
 
