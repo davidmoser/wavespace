@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # Downloads MAESTRO v3.0.0 and unzips to ../resources/maestro
 
-from __future__ import annotations
 import sys, os, zipfile, urllib.request
 from pathlib import Path
 

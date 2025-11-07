@@ -5,7 +5,6 @@ then decodes it and writes the reconstructed waveform next to the original
 file. The output filename contains the chosen model configuration.
 """
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional

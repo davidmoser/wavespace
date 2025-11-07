@@ -1,6 +1,5 @@
 """PyTorch dataset for generating asynchronous polyphonic audio clips."""
 
-from __future__ import annotations
 
 import io
 import json

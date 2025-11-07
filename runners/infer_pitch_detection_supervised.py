@@ -1,6 +1,5 @@
 """Run pitch detection models on audio files and export piano-roll visualizations."""
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple

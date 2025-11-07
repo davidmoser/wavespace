@@ -1,5 +1,4 @@
 """Utilities for converting MIDI data into salience tensors."""
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Sequence, Tuple

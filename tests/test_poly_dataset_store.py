@@ -1,6 +1,5 @@
 """Tests for storing and loading :mod:`datasets.poly_dataset` artifacts."""
 
-from __future__ import annotations
 
 from pathlib import Path
 

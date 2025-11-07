@@ -1,5 +1,4 @@
 """Dilated temporal convolutional network for pitch classification."""
-from __future__ import annotations
 
 from typing import List
 

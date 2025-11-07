@@ -1,6 +1,5 @@
 """Utilities for exporting dataset latents with EnCodec."""
 
-from __future__ import annotations
 
 import io
 import json

@@ -1,5 +1,4 @@
 """Lightweight local-context MLP for supervised pitch detection."""
-from __future__ import annotations
 
 from torch import Tensor, nn
 
