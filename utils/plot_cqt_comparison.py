@@ -1,4 +1,3 @@
-
 import math
 from pathlib import Path
 from typing import Optional, Tuple
@@ -112,10 +111,10 @@ def create_prediction_image(
     cqt_scaled = cqt_resized.clamp(0.0, 1.0)
 
     if separator_height == 0:
-        stacked = torch.cat((prediction_scaled, cqt_scaled), dim=0)
+        stacked = torch.cat((cqt_scaled, prediction_scaled), dim=0)
     else:
         separator = torch.ones((separator_height, width), dtype=torch.float32)
-        stacked = torch.cat((prediction_scaled, separator, cqt_scaled), dim=0)
+        stacked = torch.cat((cqt_scaled, separator, prediction_scaled), dim=0)
 
     rgba = matplotlib.colormaps.get_cmap(colormap)(stacked.cpu().numpy())
     rgb = (rgba[..., :3] * 255).astype(np.uint8)
@@ -132,7 +131,7 @@ def save_image(array: np.ndarray, output: str) -> None:
 
 def plot_cqt_comparison(
         audio_file: str,
-        prediction: Tensor,
+        prediction: Tensor,  # F x T
         output_image: str,
         duration_seconds: Optional[float],
         scale_values: float = 1,
@@ -155,9 +154,10 @@ def plot_cqt_comparison(
         hop_length=cqt_hop_length,
         fmin=cqt_fmin,
     )
+    # Flip frequency so low frequencies are at bottom
     image_array = create_prediction_image(
-        prediction,
-        cqt_representation,
+        prediction.flip(0),
+        cqt_representation.flip(0),
         scale_values=scale_values,
         duration_seconds=eff_duration,
         pixels_per_second=pixels_per_second,

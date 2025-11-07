@@ -43,10 +43,10 @@ def _load_midi_events(midi_path: str) -> Tuple["mido.MidiFile", Sequence[_MidiEv
 
 
 def _update_salience_segment(
-    salience: torch.Tensor,
-    start_sample: int,
-    end_sample: int,
-    active_notes: Sequence[int],
+        salience: torch.Tensor,
+        start_sample: int,
+        end_sample: int,
+        active_notes: Sequence[int],
 ) -> None:
     if end_sample <= start_sample:
         return
@@ -56,10 +56,10 @@ def _update_salience_segment(
 
 
 def _compute_activation(
-    midi: "mido.MidiFile",
-    events: Sequence[_MidiEvent],
-    sample_rate: int,
-    sustain_extend: bool,
+        midi: "mido.MidiFile",
+        events: Sequence[_MidiEvent],
+        sample_rate: int,
+        sustain_extend: bool,
 ) -> torch.Tensor:
     total_duration = max(midi.length, events[-1].time if events else 0.0)
     total_samples = max(int(round(total_duration * sample_rate)), 1)
@@ -108,20 +108,20 @@ def _compute_activation(
 
 
 def midi_to_salience(
-    midi_path: str,
-    *,
-    chunk_duration: float = 30.0,
-    sample_rate: int = 16000,
-    label_type: str = "activation",
-    sustain_extend: bool = True,
-    audio_path: str | None = None,
+        midi_path: str,
+        *,
+        chunk_duration: float = 30.0,
+        frame_rate: int = 75,
+        label_type: str = "activation",
+        sustain_extend: bool = True,
+        audio_path: str | None = None,
 ) -> List[torch.Tensor]:
     """Convert a MIDI file into salience tensors.
 
     Args:
         midi_path: Path to the MIDI file to load.
         chunk_duration: Duration of each chunk in seconds.
-        sample_rate: Target sample rate for temporal resolution.
+        frame_rate: Target sample rate for temporal resolution.
         label_type: Either ``"activation"`` or ``"power"``.
         sustain_extend: If ``True``, emulate sustain pedal behaviour.
         audio_path: Path to an audio file when ``label_type`` is ``"power"``.
@@ -131,16 +131,16 @@ def midi_to_salience(
     """
     if chunk_duration <= 0:
         raise ValueError("chunk_duration must be positive")
-    if sample_rate <= 0:
+    if frame_rate <= 0:
         raise ValueError("sample_rate must be positive")
 
     midi, events = _load_midi_events(midi_path)
     if not events:
         return []
 
-    activation = _compute_activation(midi, events, sample_rate, sustain_extend)
+    activation = _compute_activation(midi, events, frame_rate, sustain_extend)
 
-    chunk_frames = int(round(chunk_duration * sample_rate))
+    chunk_frames = int(round(chunk_duration * frame_rate))
     if chunk_frames <= 0:
         raise ValueError("chunk_duration and sample_rate combination is invalid")
 
@@ -161,14 +161,14 @@ def midi_to_salience(
     import numpy as np
     import librosa
 
-    audio, _ = librosa.load(audio_path, sr=sample_rate, mono=True)
+    audio, sampling_rate = librosa.load(audio_path, sr=None, mono=True)
     if audio.ndim != 1:
         audio = librosa.to_mono(audio)
 
     cqt = librosa.cqt(
         audio,
-        sr=sample_rate,
-        hop_length=1,
+        sr=sampling_rate,
+        hop_length=sampling_rate // frame_rate,
         fmin=librosa.midi_to_hz(0),
         n_bins=128,
         bins_per_octave=12,
