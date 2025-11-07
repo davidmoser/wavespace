@@ -17,7 +17,7 @@ def progress(blocks: int, block_size: int, total_size: int):
     sys.stdout.write(f"\rDownloading: [{bar:<50}] {pct:3d}%")
     sys.stdout.flush()
 
-def main(target_dir: str):
+def download_maestro(target_dir: str):
     target_dir = Path(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
     zip_path = target_dir / ZIP_NAME
@@ -52,5 +52,3 @@ def main(target_dir: str):
     # Done
     print("Done.")
 
-if __name__ == "__main__":
-    main("../resources")
