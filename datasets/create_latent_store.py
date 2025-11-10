@@ -40,7 +40,7 @@ def create_latent_store(
         encode_batch_size: int = 8,
         latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]] = None,
         normalize: Optional[bool] = None,
-        num_workers: Optional[int] = None,
+        num_workers: int = 1,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
