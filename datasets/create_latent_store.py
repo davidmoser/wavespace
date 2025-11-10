@@ -11,9 +11,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, Union
 
 import torch
+import torchaudio
 import zstandard
 from encodec import EncodecModel
-from encodec.utils import convert_audio
 from torch import Tensor
 from torch.utils.data import Dataset as TorchDataset, DataLoader
 
@@ -37,6 +37,7 @@ def create_latent_store(
         metadata: Optional[Dict[str, Any]] = None,
         device: Optional[torch.device] = None,
         samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
+        encode_batch_size: int = 8,
         latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]] = None,
         normalize: Optional[bool] = None,
         num_workers: Optional[int] = None,
@@ -60,6 +61,8 @@ def create_latent_store(
             by this function.
         samples_per_shard: Optional number of samples to include in each shard of
             the generated store. Defaults to 10,000 samples per shard.
+        encode_batch_size: Optional number of samples processed per encoder call.
+            Defaults to 8 samples per batch.
         latent_callback: Optional callable invoked with ``(dataset_index,
             latents, item)`` immediately after encoding each sample. This can be
             used by tests to inspect the generated latents without modifying the
@@ -76,6 +79,11 @@ def create_latent_store(
 
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if samples_per_shard <= 0:
+        raise ValueError("samples_per_shard must be a positive integer.")
+    if encode_batch_size <= 0:
+        raise ValueError("encode_batch_size must be a positive integer.")
 
     model = EncodecModel.encodec_model_48khz() if dataset_sample_rate >= 48_000 else EncodecModel.encodec_model_24khz()
     model.set_target_bandwidth(target_bandwidth)
@@ -107,106 +115,263 @@ def create_latent_store(
     if metadata is not None:
         combined_metadata["external"] = dict(metadata)
 
-    shard_paths: List[str] = []
-    global_index: List[Dict[str, Any]] = []
+    workers = 0 if num_workers is None else num_workers
+    loader = DataLoader(
+        dataset,
+        batch_size=encode_batch_size,
+        num_workers=workers,
+        pin_memory=False,
+        shuffle=False,
+        drop_last=False,
+    )
 
-    loader = DataLoader(dataset, batch_size=None, num_workers=num_workers, pin_memory=False)
-    iterator = iter(loader)
+    writer = _LatentStoreWriter(path, samples_per_shard, shard_pad, key_pad, shard_count)
+
+    next_dataset_index = 0
 
     with torch.inference_mode():
-        for shard_idx in range(shard_count):
-            print(f"Shard {shard_idx + 1}/{shard_count}")
-            start = shard_idx * samples_per_shard
-            end = min(start + samples_per_shard, total_samples)
+        for batch_items in loader:
+            batch_waveforms = batch_items[0]
+            if isinstance(batch_waveforms, Tensor):
+                batch_size = int(batch_waveforms.shape[0]) if batch_waveforms.dim() > 0 else 1
+            else:
+                batch_size = len(batch_waveforms)
 
-            shard_name = f"dataset-{shard_idx:0{shard_pad}d}"
-            tar_path = path / f"{shard_name}.tar"
-            zst_path = path / f"{shard_name}.tar.zst"
-            shard_samples: List[Dict[str, Any]] = []
+            if batch_size == 0:
+                continue
 
-            with tarfile.open(tar_path, mode="w", format=tarfile.PAX_FORMAT) as tar:
-                for dataset_index in range(start, end):
-                    if dataset_index % 100 == 0:
-                        print(f"Sample index {dataset_index}/{total_samples}")
-                    item = next(iterator)[0]
-                    if not isinstance(item, tuple) or not item:
-                        raise TypeError("Dataset items must be tuples with at least a waveform tensor.")
+            if next_dataset_index % 100 == 0:
+                print(f"Sample index {next_dataset_index}/{total_samples}")
 
-                    waveform = item[0]
-                    if waveform.dim() == 1:
-                        waveform = waveform.unsqueeze(0)
-                    if waveform.dim() != 2:
-                        raise ValueError("Waveform tensor must have shape (channels, samples).")
+            encoded_batch, original_items = _encode_batch(
+                batch_items,
+                model,
+                dataset_sample_rate,
+                device,
+                eff_normalize,
+            )
 
-                    waveform = waveform.to(torch.float32)
-                    resampled = convert_audio(waveform, int(dataset_sample_rate), model.sample_rate, model.channels)
-                    resampled = resampled.unsqueeze(0).to(device)
+            writer.write_batch(
+                start_index=next_dataset_index,
+                encoded_batch=encoded_batch,
+                original_items=original_items,
+                latent_callback=latent_callback,
+            )
 
-                    payload: Dict[str, Any] = {}
-                    if eff_normalize:
-                        mono = resampled.mean(dim=1, keepdim=True)
-                        volume = mono.pow(2).mean(dim=2, keepdim=True).sqrt()
-                        scale = 1e-8 + volume
-                        resampled = resampled / scale
-                        scale = scale.view(-1, 1)
-                        payload["scale"] = scale
+            next_dataset_index += batch_size
 
-                    latents = model.encoder(resampled).squeeze(0).contiguous().to("cpu")
-                    payload["latents"] = latents
+    if next_dataset_index != total_samples:
+        raise RuntimeError("Encoded sample count mismatch.")
 
-                    if latent_callback is not None:
-                        latent_callback(dataset_index, latents, item)
-
-                    if len(item) < 2:
-                        raise ValueError(
-                            "Dataset items must provide a label tensor as the second element.")
-
-                    label = item[1]
-                    if not isinstance(label, Tensor):
-                        raise TypeError("Dataset labels must be torch.Tensors.")
-                    label = label.detach().to(torch.float32).cpu()
-                    payload["label"] = label
-
-                    key = f"{dataset_index:0{key_pad}d}"
-                    filename = f"{key}.pt"
-
-                    buffer = io.BytesIO()
-                    if len(item) > 2:
-                        payload["extras"] = _prepare_extras(item[2:])
-
-                    torch.save(payload, buffer)
-                    data = buffer.getvalue()
-
-                    tarinfo = tarfile.TarInfo(name=filename)
-                    tarinfo.size = len(data)
-                    tarinfo.mtime = int(time.time())
-                    tar.addfile(tarinfo, io.BytesIO(data))
-
-                    shard_samples.append({
-                        "key": key,
-                        "path": filename,
-                    })
-
-            members = _read_tar_members(tar_path)
-            compressed_members = _compress_tar_with_offsets(tar_path, zst_path, members)
-            os.remove(tar_path)
-
-            shard_paths.append(zst_path.name)
-            if len(shard_samples) != len(compressed_members):
-                raise RuntimeError("Shard sample count mismatch while building index.")
-            for sample, member in zip(shard_samples, compressed_members):
-                global_index.append({
-                    "key": sample["key"],
-                    "shard": zst_path.name,
-                    "member": sample["path"],
-                    "offset": member["offset"],
-                    "size": member["size"],
-                })
+    shard_paths, global_index = writer.finalize()
 
     _write_global_metadata(path, combined_metadata)
     _write_index(path, global_index)
     _write_shard_list(path, shard_paths)
 
+
+@dataclass
+class _EncodedBatch:
+    latents: Tensor
+    labels: Tensor
+    extras: List[Optional[Tuple[Any, ...]]]
+    scales: Optional[Tensor]
+
+
+def _encode_batch(
+        batch_items: Tuple[Any, ...],
+        model: EncodecModel,
+        dataset_sample_rate: int,
+        device: torch.device,
+        normalize: bool,
+) -> Tuple[_EncodedBatch, List[Tuple[Any, ...]]]:
+    if not batch_items:
+        raise ValueError("Batch is empty.")
+
+    waveform_batch = batch_items[0]
+    if not isinstance(waveform_batch, Tensor):
+        raise TypeError("Waveform batch must be a torch.Tensor.")
+
+    if waveform_batch.dim() == 1:
+        waveform_batch = waveform_batch.unsqueeze(0)
+    if waveform_batch.dim() == 2:
+        mono_waveforms = waveform_batch.to(torch.float32)
+        original_waveforms = waveform_batch.unsqueeze(1)
+    elif waveform_batch.dim() == 3:
+        mono_waveforms = waveform_batch.squeeze(1).to(torch.float32)
+        original_waveforms = waveform_batch
+    else:
+        raise ValueError("Waveform batch must have shape (batch, samples) or (batch, channels, samples).")
+
+    resampler = torchaudio.transforms.Resample(int(dataset_sample_rate), int(model.sample_rate))
+    resampled_waveforms = resampler(mono_waveforms)
+
+    scales: Optional[Tensor] = None
+    if normalize:
+        volume = resampled_waveforms.pow(2).mean(dim=1, keepdim=True).sqrt()
+        scale = volume + 1e-8
+        resampled_waveforms = resampled_waveforms / scale
+        scales = scale.detach().cpu()
+
+    encoder_input = resampled_waveforms.unsqueeze(1).to(device)
+
+    latents = model.encoder(encoder_input).contiguous().cpu()
+
+    if len(batch_items) < 2:
+        raise ValueError("Dataset batches must include labels as the second element.")
+
+    label_batch = batch_items[1]
+    if not isinstance(label_batch, Tensor):
+        raise TypeError("Label batch must be a torch.Tensor.")
+    label_tensor = label_batch.detach().to(torch.float32).contiguous().cpu()
+
+    batch_size = int(latents.shape[0])
+
+    extras = _prepare_batched_extras(batch_items[2:], batch_size)
+
+    original_waveforms_cpu = original_waveforms.detach().cpu()
+
+    original_items: List[Tuple[Any, ...]] = []
+    for index in range(batch_size):
+        components: List[Any] = [original_waveforms_cpu[index], label_tensor[index]]
+        extra_values = extras[index]
+        if extra_values is not None:
+            components.extend(extra_values)
+        original_items.append(tuple(components))
+
+    encoded = _EncodedBatch(latents=latents, labels=label_tensor, extras=extras, scales=scales)
+    return encoded, original_items
+
+
+class _LatentStoreWriter:
+    def __init__(
+            self,
+            destination: Path,
+            samples_per_shard: int,
+            shard_pad: int,
+            key_pad: int,
+            total_shards: int,
+    ) -> None:
+        self._destination = destination
+        self._samples_per_shard = samples_per_shard
+        self._shard_pad = shard_pad
+        self._key_pad = key_pad
+        self._total_shards = total_shards
+
+        self._current_shard_idx: Optional[int] = None
+        self._current_tar: Optional[tarfile.TarFile] = None
+        self._current_tar_path: Optional[Path] = None
+        self._current_zst_path: Optional[Path] = None
+        self._current_shard_samples: List[Dict[str, Any]] = []
+
+        self._shard_paths: List[str] = []
+        self._global_index: List[Dict[str, Any]] = []
+
+    def write_batch(
+            self,
+            *,
+            start_index: int,
+            encoded_batch: _EncodedBatch,
+            original_items: Sequence[Tuple[Any, ...]],
+            latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]],
+    ) -> None:
+        batch_size = encoded_batch.latents.shape[0]
+        if batch_size != len(original_items):
+            raise ValueError("Encoded batch size does not match provided items.")
+
+        for offset in range(batch_size):
+            dataset_index = start_index + offset
+            self._ensure_shard(dataset_index)
+
+            sample_latents = encoded_batch.latents[offset].contiguous()
+
+            if latent_callback is not None:
+                latent_callback(dataset_index, sample_latents, original_items[offset])
+
+            payload: Dict[str, Any] = {"latents": sample_latents}
+
+            if encoded_batch.scales is not None:
+                scale = encoded_batch.scales[offset].view(-1, 1)
+                payload["scale"] = scale
+
+            label = encoded_batch.labels[offset]
+            payload["label"] = label
+
+            extras = encoded_batch.extras[offset]
+            if extras:
+                payload["extras"] = extras
+
+            key = f"{dataset_index:0{self._key_pad}d}"
+            filename = f"{key}.pt"
+
+            buffer = io.BytesIO()
+            torch.save(payload, buffer)
+            data = buffer.getvalue()
+
+            tarinfo = tarfile.TarInfo(name=filename)
+            tarinfo.size = len(data)
+            tarinfo.mtime = int(time.time())
+            if self._current_tar is None:
+                raise RuntimeError("Tarfile handle is not initialized.")
+            self._current_tar.addfile(tarinfo, io.BytesIO(data))
+
+            self._current_shard_samples.append({"key": key, "path": filename})
+
+    def finalize(self) -> Tuple[List[str], List[Dict[str, Any]]]:
+        self._close_current_shard()
+        return self._shard_paths, self._global_index
+
+    def _ensure_shard(self, dataset_index: int) -> None:
+        shard_idx = dataset_index // self._samples_per_shard
+        if self._current_shard_idx == shard_idx:
+            return
+
+        self._close_current_shard()
+        self._open_shard(shard_idx)
+
+    def _open_shard(self, shard_idx: int) -> None:
+        self._current_shard_idx = shard_idx
+        shard_name = f"dataset-{shard_idx:0{self._shard_pad}d}"
+        print(f"Shard {shard_idx + 1}/{self._total_shards}")
+        self._current_tar_path = self._destination / f"{shard_name}.tar"
+        self._current_zst_path = self._destination / f"{shard_name}.tar.zst"
+        self._current_tar = tarfile.open(self._current_tar_path, mode="w", format=tarfile.PAX_FORMAT)
+        self._current_shard_samples = []
+
+    def _close_current_shard(self) -> None:
+        if self._current_tar is None:
+            return
+
+        self._current_tar.close()
+        if self._current_tar_path is None or self._current_zst_path is None:
+            raise RuntimeError("Shard paths are not initialized.")
+
+        members = _read_tar_members(self._current_tar_path)
+        compressed_members = _compress_tar_with_offsets(
+            self._current_tar_path,
+            self._current_zst_path,
+            members,
+        )
+        os.remove(self._current_tar_path)
+
+        self._shard_paths.append(self._current_zst_path.name)
+        if len(self._current_shard_samples) != len(compressed_members):
+            raise RuntimeError("Shard sample count mismatch while building index.")
+
+        for sample, member in zip(self._current_shard_samples, compressed_members):
+            self._global_index.append({
+                "key": sample["key"],
+                "shard": self._current_zst_path.name,
+                "member": sample["path"],
+                "offset": member["offset"],
+                "size": member["size"],
+            })
+
+        self._current_tar = None
+        self._current_tar_path = None
+        self._current_zst_path = None
+        self._current_shard_samples = []
+        self._current_shard_idx = None
 
 def _write_global_metadata(destination: Path, metadata: Dict[str, Any]) -> None:
     metadata_path = destination / "dataset.json"
@@ -293,11 +458,20 @@ def _compress_tar_with_offsets(tar_path: Path, zst_path: Path, members: Sequence
     return results
 
 
-def _prepare_extras(extras: Sequence[Any]) -> Tuple[Any, ...]:
-    converted: List[Any] = []
-    for value in extras:
-        if isinstance(value, Tensor):
-            converted.append(value.detach().cpu())
-        else:
-            converted.append(value)
-    return tuple(converted)
+def _prepare_batched_extras(components: Sequence[Any], batch_size: int) -> List[Optional[Tuple[Any, ...]]]:
+    if batch_size == 0:
+        return []
+    if not components:
+        return [None] * batch_size
+
+    extras: List[Optional[Tuple[Any, ...]]] = []
+    for index in range(batch_size):
+        values: List[Any] = []
+        for component in components:
+            item = component[index]
+            if isinstance(item, Tensor):
+                values.append(item.detach().cpu())
+            else:
+                values.append(item)
+        extras.append(tuple(values))
+    return extras
