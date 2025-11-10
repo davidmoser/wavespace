@@ -1,6 +1,5 @@
 """Utilities for exporting dataset latents with EnCodec."""
 
-
 import io
 import json
 import math
@@ -16,7 +15,7 @@ import zstandard
 from encodec import EncodecModel
 from encodec.utils import convert_audio
 from torch import Tensor
-from torch.utils.data import Dataset as TorchDataset
+from torch.utils.data import Dataset as TorchDataset, DataLoader
 
 DatasetItem = Tuple[Tensor, Tensor]
 
@@ -40,6 +39,7 @@ def create_latent_store(
         samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
         latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]] = None,
         normalize: Optional[bool] = None,
+        num_workers: Optional[int] = None,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
@@ -67,6 +67,7 @@ def create_latent_store(
         normalize: Optional flag indicating whether to scale normalize the audio
             samples within segments (24kHz model is unnormalized by default,
             48kHz model is normalized within 1s segments by default)
+        num_workers: Number of workers for the DataLoader
     """
     total_samples = len(dataset)  # type: ignore[arg-type]
 
@@ -109,6 +110,9 @@ def create_latent_store(
     shard_paths: List[str] = []
     global_index: List[Dict[str, Any]] = []
 
+    loader = DataLoader(dataset, batch_size=None, num_workers=num_workers, pin_memory=False)
+    iterator = iter(loader)
+
     with torch.inference_mode():
         for shard_idx in range(shard_count):
             print(f"Shard {shard_idx + 1}/{shard_count}")
@@ -124,7 +128,7 @@ def create_latent_store(
                 for dataset_index in range(start, end):
                     if dataset_index % 100 == 0:
                         print(f"Sample index {dataset_index}/{total_samples}")
-                    item = dataset[dataset_index]  # type: ignore[index]
+                    item = next(iterator)[0]
                     if not isinstance(item, tuple) or not item:
                         raise TypeError("Dataset items must be tuples with at least a waveform tensor.")
 
