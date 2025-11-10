@@ -11,7 +11,7 @@ from torch.nn import Module, BCEWithLogitsLoss
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
-from datasets.poly_dataset import PolyphonicAsyncDatasetFromStore
+from datasets.latent_salience_store import LatentSalienceStore
 from .configuration import Configuration
 from .dilated_tcn import DilatedTCN
 from .evaluate import (
@@ -194,7 +194,7 @@ def _load_datasets(config: Configuration) -> Tuple[Dataset, Optional[Dataset]]:
 
 
 def _load_dataset(path: str) -> Dataset:
-    return PolyphonicAsyncDatasetFromStore(path)
+    return LatentSalienceStore(path)
 
 
 def _create_loader(

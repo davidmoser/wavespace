@@ -26,6 +26,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             *,
             wav_midi_path: str | Path,
             n_samples: int,
+            sample_rate: int,
             duration: float,
             label_sample_rate: float,
             label_type: str = "activation",
@@ -35,6 +36,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             raise ValueError(f"wav_midi_path must be a directory: {self.root}")
 
         self.n_samples = int(n_samples)
+        self.sample_rate = int(sample_rate)
         self.duration = float(duration)
         self.label_sample_rate = float(label_sample_rate)
 
