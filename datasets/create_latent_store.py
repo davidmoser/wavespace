@@ -38,7 +38,7 @@ def create_latent_store(
         device: Optional[torch.device] = None,
         samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
         encode_batch_size: int = 8,
-        latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]] = None,
+        latent_callback: Optional[Callable[[int, Tensor], None]] = None,
         normalize: Optional[bool] = None,
         num_workers: int = 1,
 ) -> None:
@@ -143,7 +143,7 @@ def create_latent_store(
             if next_dataset_index % 100 == 0:
                 print(f"Sample index {next_dataset_index}/{total_samples}")
 
-            encoded_batch, original_items = _encode_batch(
+            encoded_batch = _encode_batch(
                 batch_items,
                 model,
                 dataset_sample_rate,
@@ -154,7 +154,6 @@ def create_latent_store(
             writer.write_batch(
                 start_index=next_dataset_index,
                 encoded_batch=encoded_batch,
-                original_items=original_items,
                 latent_callback=latent_callback,
             )
 
@@ -184,7 +183,7 @@ def _encode_batch(
         dataset_sample_rate: int,
         device: torch.device,
         normalize: bool,
-) -> Tuple[_EncodedBatch, List[Tuple[Any, ...]]]:
+) -> _EncodedBatch:
     if not batch_items:
         raise ValueError("Batch is empty.")
 
@@ -192,19 +191,17 @@ def _encode_batch(
     if not isinstance(waveform_batch, Tensor):
         raise TypeError("Waveform batch must be a torch.Tensor.")
 
-    if waveform_batch.dim() == 1:
-        waveform_batch = waveform_batch.unsqueeze(0)
-    if waveform_batch.dim() == 2:
-        mono_waveforms = waveform_batch.to(torch.float32)
-        original_waveforms = waveform_batch.unsqueeze(1)
-    elif waveform_batch.dim() == 3:
-        mono_waveforms = waveform_batch.squeeze(1).to(torch.float32)
-        original_waveforms = waveform_batch
+    if waveform_batch.dim() != 3:
+        raise ValueError("Waveform batch must have shape (batch, channels, samples)")
+    if waveform_batch.shape[1] == 1:
+        mono_waveform = waveform_batch
+    elif waveform_batch.shape[1] == 2:
+        mono_waveform = waveform_batch.mean(dim=1, keepdim=True)
     else:
-        raise ValueError("Waveform batch must have shape (batch, samples) or (batch, channels, samples).")
+        raise ValueError(f"Waveform must be mono or stereo. Number of channels: {waveform_batch.shape[1]}")
 
     resampler = torchaudio.transforms.Resample(int(dataset_sample_rate), int(model.sample_rate))
-    resampled_waveforms = resampler(mono_waveforms)
+    resampled_waveforms = resampler(mono_waveform)
 
     scales: Optional[Tensor] = None
     if normalize:
@@ -213,12 +210,7 @@ def _encode_batch(
         resampled_waveforms = resampled_waveforms / scale
         scales = scale.detach().cpu()
 
-    encoder_input = resampled_waveforms.unsqueeze(1).to(device)
-
-    latents = model.encoder(encoder_input).contiguous().cpu()
-
-    if len(batch_items) < 2:
-        raise ValueError("Dataset batches must include labels as the second element.")
+    latents = model.encoder(resampled_waveforms).contiguous().cpu()
 
     label_batch = batch_items[1]
     if not isinstance(label_batch, Tensor):
@@ -229,18 +221,8 @@ def _encode_batch(
 
     extras = _prepare_batched_extras(batch_items[2:], batch_size)
 
-    original_waveforms_cpu = original_waveforms.detach().cpu()
-
-    original_items: List[Tuple[Any, ...]] = []
-    for index in range(batch_size):
-        components: List[Any] = [original_waveforms_cpu[index], label_tensor[index]]
-        extra_values = extras[index]
-        if extra_values is not None:
-            components.extend(extra_values)
-        original_items.append(tuple(components))
-
     encoded = _EncodedBatch(latents=latents, labels=label_tensor, extras=extras, scales=scales)
-    return encoded, original_items
+    return encoded
 
 
 class _LatentStoreWriter:
@@ -272,12 +254,9 @@ class _LatentStoreWriter:
             *,
             start_index: int,
             encoded_batch: _EncodedBatch,
-            original_items: Sequence[Tuple[Any, ...]],
-            latent_callback: Optional[Callable[[int, Tensor, Tuple[Any, ...]], None]],
+            latent_callback: Optional[Callable[[int, Tensor], None]],
     ) -> None:
         batch_size = encoded_batch.latents.shape[0]
-        if batch_size != len(original_items):
-            raise ValueError("Encoded batch size does not match provided items.")
 
         for offset in range(batch_size):
             dataset_index = start_index + offset
@@ -286,7 +265,7 @@ class _LatentStoreWriter:
             sample_latents = encoded_batch.latents[offset].contiguous()
 
             if latent_callback is not None:
-                latent_callback(dataset_index, sample_latents, original_items[offset])
+                latent_callback(dataset_index, sample_latents)
 
             payload: Dict[str, Any] = {"latents": sample_latents}
 
@@ -372,6 +351,7 @@ class _LatentStoreWriter:
         self._current_zst_path = None
         self._current_shard_samples = []
         self._current_shard_idx = None
+
 
 def _write_global_metadata(destination: Path, metadata: Dict[str, Any]) -> None:
     metadata_path = destination / "dataset.json"

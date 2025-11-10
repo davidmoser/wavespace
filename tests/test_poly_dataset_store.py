@@ -24,7 +24,7 @@ def test_polyphonic_dataset_store_roundtrip(tmp_path: Path) -> None:
 
     captured_latents: dict[int, torch.Tensor] = {}
 
-    def capture_latents(index: int, latents: torch.Tensor, item: tuple[torch.Tensor, torch.Tensor]) -> None:
+    def capture_latents(index: int, latents: torch.Tensor) -> None:
         captured_latents[index] = latents.clone()
 
     create_latent_store(
