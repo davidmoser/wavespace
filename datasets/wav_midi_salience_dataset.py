@@ -14,7 +14,6 @@ from torch.utils.data import IterableDataset, get_worker_info
 
 from datasets.midi_to_salience import midi_to_salience
 
-
 _AUDIO_EXTENSIONS: Tuple[str, ...] = (".wav", ".wave")
 _MIDI_EXTENSIONS: Tuple[str, ...] = (".mid", ".midi")
 
@@ -27,7 +26,6 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             *,
             wav_midi_path: str | Path,
             n_samples: int,
-            sample_rate: int,
             duration: float,
             label_sample_rate: float,
             label_type: str = "activation",
@@ -37,7 +35,6 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             raise ValueError(f"wav_midi_path must be a directory: {self.root}")
 
         self.n_samples = int(n_samples)
-        self.sample_rate = int(sample_rate)
         self.duration = float(duration)
         self.label_sample_rate = float(label_sample_rate)
 
@@ -65,7 +62,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             files = self._base_files
             target_samples = self.n_samples
         else:
-            files = tuple(self._base_files[worker.id :: worker.num_workers])
+            files = tuple(self._base_files[worker.id:: worker.num_workers])
             base_share = self.n_samples // worker.num_workers
             remainder = self.n_samples % worker.num_workers
             target_samples = base_share + (1 if worker.id < remainder else 0)
@@ -116,9 +113,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         return wav_files
 
     def _prepare_file_chunks(self, wav_path: Path) -> Tuple[List[Tensor], List[Tensor]]:
-        waveform, sr = torchaudio.load(str(wav_path))
-        if sr != self.sample_rate:
-            waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
+        waveform, _ = torchaudio.load(str(wav_path))
 
         total_samples = waveform.shape[1]
         chunk_samples = self._chunk_samples
