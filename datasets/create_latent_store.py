@@ -147,7 +147,6 @@ def create_latent_store(
                 batch_items,
                 model,
                 dataset_sample_rate,
-                device,
                 eff_normalize,
             )
 
@@ -173,7 +172,6 @@ def create_latent_store(
 class _EncodedBatch:
     latents: Tensor
     labels: Tensor
-    extras: List[Optional[Tuple[Any, ...]]]
     scales: Optional[Tensor]
 
 
@@ -181,7 +179,6 @@ def _encode_batch(
         batch_items: Tuple[Any, ...],
         model: EncodecModel,
         dataset_sample_rate: int,
-        device: torch.device,
         normalize: bool,
 ) -> _EncodedBatch:
     if not batch_items:
@@ -217,11 +214,7 @@ def _encode_batch(
         raise TypeError("Label batch must be a torch.Tensor.")
     label_tensor = label_batch.detach().to(torch.float32).contiguous().cpu()
 
-    batch_size = int(latents.shape[0])
-
-    extras = _prepare_batched_extras(batch_items[2:], batch_size)
-
-    encoded = _EncodedBatch(latents=latents, labels=label_tensor, extras=extras, scales=scales)
+    encoded = _EncodedBatch(latents=latents, labels=label_tensor, scales=scales)
     return encoded
 
 
@@ -275,10 +268,6 @@ class _LatentStoreWriter:
 
             label = encoded_batch.labels[offset]
             payload["label"] = label
-
-            extras = encoded_batch.extras[offset]
-            if extras:
-                payload["extras"] = extras
 
             key = f"{dataset_index:0{self._key_pad}d}"
             filename = f"{key}.pt"
@@ -437,21 +426,3 @@ def _compress_tar_with_offsets(tar_path: Path, zst_path: Path, members: Sequence
         results.append({"member": name, "offset": start, "size": end - start})
     return results
 
-
-def _prepare_batched_extras(components: Sequence[Any], batch_size: int) -> List[Optional[Tuple[Any, ...]]]:
-    if batch_size == 0:
-        return []
-    if not components:
-        return [None] * batch_size
-
-    extras: List[Optional[Tuple[Any, ...]]] = []
-    for index in range(batch_size):
-        values: List[Any] = []
-        for component in components:
-            item = component[index]
-            if isinstance(item, Tensor):
-                values.append(item.detach().cpu())
-            else:
-                values.append(item)
-        extras.append(tuple(values))
-    return extras
