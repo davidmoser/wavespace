@@ -161,20 +161,72 @@ def midi_to_salience(
     import numpy as np
     import librosa
 
-    audio, sampling_rate = librosa.load(audio_path, sr=None, mono=True)
-    if audio.ndim != 1:
-        audio = librosa.to_mono(audio)
+    power_chunks: List[torch.Tensor] = []
 
-    cqt = librosa.cqt(
-        audio,
-        sr=sampling_rate,
-        hop_length=sampling_rate // frame_rate,
-        fmin=librosa.midi_to_hz(0),
-        n_bins=128,
-        bins_per_octave=12,
-    )
-    power = np.abs(cqt) ** 2
-    power_tensor = torch.from_numpy(power.T.astype(np.float32))
+    sampling_rate: int | None = None
+    chunk_samples: int | None = None
+    hop_length: int | None = None
+    chunk_index = 0
+
+    while True:
+        offset = chunk_index * chunk_duration
+        audio_chunk, sr = librosa.load(
+            audio_path,
+            sr=None,
+            mono=False,
+            offset=offset,
+            duration=chunk_duration,
+        )
+        if audio_chunk.size == 0:
+            break
+
+        current_rate = int(sr)
+        if sampling_rate is None:
+            sampling_rate = current_rate
+            chunk_samples = int(round(chunk_duration * sampling_rate))
+            if chunk_samples <= 0:
+                raise ValueError("chunk_duration and sample_rate combination is invalid")
+            hop_length = sampling_rate // frame_rate
+            if hop_length <= 0:
+                raise ValueError("frame_rate must not exceed sampling_rate")
+        elif current_rate != sampling_rate:
+            raise ValueError("audio chunks yielded inconsistent sampling rates")
+
+        assert chunk_samples is not None
+        assert hop_length is not None
+
+        if audio_chunk.ndim == 1:
+            mono_chunk = audio_chunk
+        else:
+            mono_chunk = audio_chunk.mean(axis=0)
+
+        if mono_chunk.shape[0] < chunk_samples:
+            break
+
+        assert sampling_rate is not None
+
+        cqt = librosa.cqt(
+            mono_chunk,
+            sr=sampling_rate,
+            hop_length=hop_length,
+            fmin=librosa.midi_to_hz(0),
+            n_bins=128,
+            bins_per_octave=12,
+        )
+        power = np.abs(cqt) ** 2
+        chunk_tensor = torch.from_numpy(power.T.astype(np.float32))
+        if chunk_tensor.shape[0] < chunk_frames:
+            chunk_index += 1
+            continue
+        if chunk_tensor.shape[0] > chunk_frames:
+            chunk_tensor = chunk_tensor[:chunk_frames]
+        power_chunks.append(chunk_tensor.contiguous())
+        chunk_index += 1
+
+    if not power_chunks:
+        return []
+
+    power_tensor = torch.cat(power_chunks, dim=0)
 
     max_frames = min(power_tensor.shape[0], activation.shape[0])
     if max_frames < chunk_frames:
