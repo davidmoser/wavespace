@@ -129,10 +129,6 @@ def midi_to_salience(
     Returns:
         A list of tensors of shape ``(chunk_duration * sample_rate, 128)``.
     """
-    if chunk_duration <= 0:
-        raise ValueError("chunk_duration must be positive")
-    if frame_rate <= 0:
-        raise ValueError("sample_rate must be positive")
 
     midi, events = _load_midi_events(midi_path)
     if not events:
@@ -141,14 +137,12 @@ def midi_to_salience(
     activation = _compute_activation(midi, events, frame_rate, sustain_extend)
 
     chunk_frames = int(round(chunk_duration * frame_rate))
-    if chunk_frames <= 0:
-        raise ValueError("chunk_duration and sample_rate combination is invalid")
+    total_frames = activation.shape[0] - (activation.shape[0] % chunk_frames)
+    if total_frames <= 0:
+        return []
+    activation = activation[:total_frames]
 
     if label_type == "activation":
-        total_frames = activation.shape[0] - (activation.shape[0] % chunk_frames)
-        if total_frames <= 0:
-            return []
-        activation = activation[:total_frames]
         chunks = activation.view(total_frames // chunk_frames, chunk_frames, 128)
         return [chunk.clone() for chunk in chunks]
 
@@ -164,8 +158,6 @@ def midi_to_salience(
     power_chunks: List[torch.Tensor] = []
 
     sampling_rate: int | None = None
-    chunk_samples: int | None = None
-    hop_length: int | None = None
     chunk_index = 0
 
     while True:
@@ -173,40 +165,18 @@ def midi_to_salience(
         audio_chunk, sr = librosa.load(
             audio_path,
             sr=None,
-            mono=False,
+            mono=True,
             offset=offset,
             duration=chunk_duration,
         )
         if audio_chunk.size == 0:
             break
-
-        current_rate = int(sr)
-        if sampling_rate is None:
-            sampling_rate = current_rate
-            chunk_samples = int(round(chunk_duration * sampling_rate))
-            if chunk_samples <= 0:
-                raise ValueError("chunk_duration and sample_rate combination is invalid")
-            hop_length = sampling_rate // frame_rate
-            if hop_length <= 0:
-                raise ValueError("frame_rate must not exceed sampling_rate")
-        elif current_rate != sampling_rate:
-            raise ValueError("audio chunks yielded inconsistent sampling rates")
-
-        assert chunk_samples is not None
-        assert hop_length is not None
-
-        if audio_chunk.ndim == 1:
-            mono_chunk = audio_chunk
-        else:
-            mono_chunk = audio_chunk.mean(axis=0)
-
-        if mono_chunk.shape[0] < chunk_samples:
+        if audio_chunk.shape[0] < int(round(chunk_duration * sr)):
             break
 
-        assert sampling_rate is not None
-
+        hop_length = sampling_rate // frame_rate
         cqt = librosa.cqt(
-            mono_chunk,
+            audio_chunk,
             sr=sampling_rate,
             hop_length=hop_length,
             fmin=librosa.midi_to_hz(0),
@@ -215,11 +185,6 @@ def midi_to_salience(
         )
         power = np.abs(cqt) ** 2
         chunk_tensor = torch.from_numpy(power.T.astype(np.float32))
-        if chunk_tensor.shape[0] < chunk_frames:
-            chunk_index += 1
-            continue
-        if chunk_tensor.shape[0] > chunk_frames:
-            chunk_tensor = chunk_tensor[:chunk_frames]
         power_chunks.append(chunk_tensor.contiguous())
         chunk_index += 1
 
@@ -227,17 +192,8 @@ def midi_to_salience(
         return []
 
     power_tensor = torch.cat(power_chunks, dim=0)
+    assert power_tensor.shape == (total_frames, 128)
 
-    max_frames = min(power_tensor.shape[0], activation.shape[0])
-    if max_frames < chunk_frames:
-        return []
-    activation = activation[:max_frames]
-    power_tensor = power_tensor[:max_frames]
     masked = power_tensor * activation
-
-    total_frames = max_frames - (max_frames % chunk_frames)
-    if total_frames <= 0:
-        return []
-    masked = masked[:total_frames]
     chunks = masked.view(total_frames // chunk_frames, chunk_frames, 128)
     return [chunk.clone() for chunk in chunks]
