@@ -38,9 +38,9 @@ def create_latent_store(
         device: Optional[torch.device] = None,
         samples_per_shard: int = _DEFAULT_SAMPLES_PER_SHARD,
         encode_batch_size: int = 8,
-        latent_callback: Optional[Callable[[int, Tensor], None]] = None,
-        normalize: Optional[bool] = None,
         num_workers: int = 1,
+        normalize: Optional[bool] = None,
+        latent_callback: Optional[Callable[[int, Tensor], None]] = None,
 ) -> None:
     """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
 
