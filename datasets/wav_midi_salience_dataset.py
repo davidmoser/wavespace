@@ -115,17 +115,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         return wav_files
 
     def _prepare_file_chunks(self, wav_path: Path) -> Tuple[List[Tensor], List[Tensor]]:
-        waveform, _ = torchaudio.load(str(wav_path))
-
-        total_samples = waveform.shape[1]
-        chunk_samples = self._chunk_samples
-        usable_samples = total_samples - (total_samples % chunk_samples)
-        if usable_samples < chunk_samples:
-            return [], []
-
-        waveform = waveform[:, :usable_samples]
-        audio_chunks = [chunk.contiguous() for chunk in waveform.split(chunk_samples, dim=1)]
-
+        # Label chunks
         midi_path = self._resolve_midi_path(wav_path)
         salience_chunks = midi_to_salience(
             midi_path=str(midi_path),
@@ -136,13 +126,23 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         )
         if not salience_chunks:
             return [], []
+        label_chunks = [chunk.to(dtype=torch.float32).contiguous() for chunk in salience_chunks]
 
-        pair_count = min(len(audio_chunks), len(salience_chunks))
-        if pair_count == 0:
+        # Audio chunks
+        waveform, _ = torchaudio.load(str(wav_path))
+        total_samples = waveform.shape[1]
+        chunk_samples = self._chunk_samples
+        usable_samples = total_samples - (total_samples % chunk_samples)
+        if usable_samples < chunk_samples:
             return [], []
 
-        audio_chunks = audio_chunks[:pair_count]
-        label_chunks = [chunk.to(dtype=torch.float32).contiguous() for chunk in salience_chunks[:pair_count]]
+        waveform = waveform[:, :usable_samples]
+        audio_chunks = [chunk.contiguous() for chunk in waveform.split(chunk_samples, dim=1)]
+
+        if len(audio_chunks) != len(salience_chunks):
+            raise Exception(
+                f"Audio chunks ({len(audio_chunks)}) and salience chunks ({len(salience_chunks)}) don't match.")
+
         return audio_chunks, label_chunks
 
     def _resolve_midi_path(self, wav_path: Path) -> Path:
