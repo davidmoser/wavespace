@@ -1,5 +1,4 @@
 """Tests for storing and loading :mod:`datasets.poly_dataset` artifacts."""
-import csv
 import time
 from pathlib import Path
 
@@ -22,6 +21,7 @@ def convert_maestro(
         wav_midi_path="../../resources/maestro-v3.0.0",
         n_samples=n_samples,
         duration=duration,
+        sample_rate=24000,
         label_frame_rate=75,
         label_type=label_type,
     )
@@ -40,8 +40,8 @@ def convert_maestro(
 
 
 def optimize():
-    encode_batch_sizes = [1, 2, 4, 8, 16]
-    num_workerss = [0]
+    encode_batch_sizes = [4]
+    num_workerss = [8]
     times = np.zeros((5, 4), dtype=float)
     for i, encode_batch_size in enumerate(encode_batch_sizes):
         for j, num_workers in enumerate(num_workerss):
@@ -59,14 +59,13 @@ def optimize():
             times[i, j] = end - start
             print(f"Time: {end - start}s")
 
-    with open("../../results/maestro/batch_timings.csv", "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["batch_size", "num_workers", "seconds"])
-        for i, ebs in enumerate(encode_batch_sizes):
-            for j, nw in enumerate(num_workerss):
-                w.writerow([ebs, nw, f"{times[i, j]:.6f}"])
-    print("\nWrote timings.csv")
-
 
 if __name__ == "__main__":
-    optimize()
+    convert_maestro(
+        output_dir=f"../../resources/encodec_latents/maestro_2000samples_20seconds",
+        n_samples=2000,
+        duration=20,
+        label_type="power",
+        encode_batch_size=4,
+        num_workers=8,
+    )

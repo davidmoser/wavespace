@@ -27,6 +27,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             wav_midi_path: str | Path,
             n_samples: int,
             duration: float,
+            sample_rate: int,
             label_frame_rate: float,
             label_type: str = "activation",
             seed: int = 20,
@@ -37,6 +38,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
 
         self.n_samples = int(n_samples)
         self.duration = float(duration)
+        self.sample_rate = int(sample_rate)
         self.label_frame_rate = float(label_frame_rate)
 
         label_type_value = str(label_type).lower()
@@ -130,8 +132,10 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         # Audio chunks
         waveform, sr = torchaudio.load(str(wav_path))
         waveform = waveform.mean(dim=0, keepdim=True)  # to mono
+        waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
+
         total_samples = waveform.shape[1]
-        chunk_samples = int(sr * self.duration)
+        chunk_samples = int(self.sample_rate * self.duration)
         usable_samples = total_samples - (total_samples % chunk_samples)
         if usable_samples < chunk_samples:
             return [], []
@@ -139,6 +143,12 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         waveform = waveform[:, :usable_samples]
         audio_chunks = [chunk.contiguous() for chunk in waveform.split(chunk_samples, dim=1)]
 
+        # sometimes the midi stops a few seconds before the wav
+        # => sometimes (rare) less midi chunks than audio chunks
+        # => throw away at most one audio chunk
+        if len(audio_chunks) == len(salience_chunks) + 1:
+            audio_chunks = audio_chunks[:-1]
+            print(f"Throwing away last audio chunk for:\n{wav_path}")
         if len(audio_chunks) != len(salience_chunks):
             raise Exception(
                 f"Audio chunks ({len(audio_chunks)}) and salience chunks ({len(salience_chunks)}) don't match.\nFile: {wav_path}.")
@@ -164,5 +174,4 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         raise FileNotFoundError(f"No MIDI file matching {wav_path.name} found in {parent}")
 
     def get_sample_rate(self) -> int:
-        _, sample_rate = torchaudio.load(self._base_files[0])
-        return sample_rate
+        return self.sample_rate
