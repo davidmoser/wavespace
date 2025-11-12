@@ -26,19 +26,18 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             *,
             wav_midi_path: str | Path,
             n_samples: int,
-            sample_rate: int,
             duration: float,
-            label_sample_rate: float,
+            label_frame_rate: float,
             label_type: str = "activation",
+            seed: int = 20,
     ) -> None:
         self.root = Path(wav_midi_path).expanduser().resolve()
         if not self.root.is_dir():
             raise ValueError(f"wav_midi_path must be a directory: {self.root}")
 
         self.n_samples = int(n_samples)
-        self.sample_rate = int(sample_rate)
         self.duration = float(duration)
-        self.label_sample_rate = float(label_sample_rate)
+        self.label_frame_rate = float(label_frame_rate)
 
         label_type_value = str(label_type).lower()
         if label_type_value not in {"power", "activation"}:
@@ -46,14 +45,14 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         self.label_type = label_type_value
 
         self._base_files = self._collect_wav_files(self.root)
+        random.seed(seed)
         random.shuffle(self._base_files)
         self._base_files = tuple(self._base_files)
 
         if not self._base_files:
             raise ValueError(f"No WAV files found under {self.root}")
 
-        self._chunk_samples = int(round(self.sample_rate * self.duration))
-        self._frame_rate = int(round(self.label_sample_rate))
+        self._frame_rate = int(round(self.label_frame_rate))
 
     def __len__(self) -> int:  # pragma: no cover - optional for IterableDataset
         return self.n_samples
@@ -126,12 +125,13 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         )
         if not salience_chunks:
             return [], []
-        label_chunks = [chunk.to(dtype=torch.float32).contiguous() for chunk in salience_chunks]
+        salience_chunks = [chunk.to(dtype=torch.float32).contiguous() for chunk in salience_chunks]
 
         # Audio chunks
-        waveform, _ = torchaudio.load(str(wav_path))
+        waveform, sr = torchaudio.load(str(wav_path))
+        waveform = waveform.mean(dim=0, keepdim=True)  # to mono
         total_samples = waveform.shape[1]
-        chunk_samples = self._chunk_samples
+        chunk_samples = int(sr * self.duration)
         usable_samples = total_samples - (total_samples % chunk_samples)
         if usable_samples < chunk_samples:
             return [], []
@@ -141,9 +141,9 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
 
         if len(audio_chunks) != len(salience_chunks):
             raise Exception(
-                f"Audio chunks ({len(audio_chunks)}) and salience chunks ({len(salience_chunks)}) don't match.")
+                f"Audio chunks ({len(audio_chunks)}) and salience chunks ({len(salience_chunks)}) don't match.\nFile: {wav_path}.")
 
-        return audio_chunks, label_chunks
+        return audio_chunks, salience_chunks
 
     def _resolve_midi_path(self, wav_path: Path) -> Path:
         stem = wav_path.stem
@@ -162,3 +162,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
                 return item
 
         raise FileNotFoundError(f"No MIDI file matching {wav_path.name} found in {parent}")
+
+    def get_sample_rate(self) -> int:
+        _, sample_rate = torchaudio.load(self._base_files[0])
+        return sample_rate

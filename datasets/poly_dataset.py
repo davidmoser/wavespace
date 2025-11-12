@@ -47,22 +47,6 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
             label_type: str = "power",
             seed: Optional[int] = None,
     ) -> None:
-        if n_samples <= 0:
-            raise ValueError("n_samples must be positive")
-        if max_polyphony <= 0:
-            raise ValueError("max_polyphony must be positive")
-        if sr <= 0:
-            raise ValueError("sr must be positive")
-        if duration <= 0.0:
-            raise ValueError("duration must be positive")
-        if min_note_duration <= 0.0:
-            raise ValueError("min_note_duration must be positive")
-
-        if label_sample_rate <= 0.0:
-            raise ValueError("label_sample_rate must be positive")
-        if label_bins <= 0:
-            raise ValueError("label_bins must be positive")
-
         self.n_samples = int(n_samples)
         self.max_polyphony = int(max_polyphony)
         self.sample_rate = int(sr)
@@ -197,3 +181,5 @@ class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
         alpha = float((freq_hz - left) / denom)
         alpha = min(max(alpha, 0.0), 1.0)
         return [(idx - 1, 1.0 - alpha), (idx, alpha)]
+
+    def get_sample_rate(self) -> int: return self.sample_rate

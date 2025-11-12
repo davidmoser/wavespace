@@ -13,9 +13,8 @@ def test_wav_midi_dataset_to_store(tmp_path: Path) -> None:
     dataset = WavMidiSalienceDataset(
         wav_midi_path="./resources/maestro-v3.0.0",
         n_samples=10,
-        sample_rate=44_100,
         duration=20,
-        label_sample_rate=75,
+        label_frame_rate=75,
         label_type="activation",
     )
 
@@ -30,7 +29,6 @@ def test_wav_midi_dataset_to_store(tmp_path: Path) -> None:
     create_latent_store(
         dataset,
         output_path,
-        dataset_sample_rate=dataset.sample_rate,
         samples_per_shard=4,
         latent_callback=capture_latents,
     )

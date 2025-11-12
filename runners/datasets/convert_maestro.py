@@ -21,19 +21,18 @@ def convert_maestro(
     dataset = WavMidiSalienceDataset(
         wav_midi_path="../../resources/maestro-v3.0.0",
         n_samples=n_samples,
-        sample_rate=44_100,
         duration=duration,
-        label_sample_rate=75,
+        label_frame_rate=75,
         label_type=label_type,
     )
 
     output_path = Path(output_dir)
-    output_path.mkdir(exist_ok=False)
+    output_path.mkdir(exist_ok=True)
 
     create_latent_store(
         dataset,
         output_path,
-        dataset_sample_rate=dataset.sample_rate,
+        model_type="24khz",
         samples_per_shard=samples_per_shard,
         encode_batch_size=encode_batch_size,
         num_workers=num_workers,
@@ -41,8 +40,8 @@ def convert_maestro(
 
 
 def optimize():
-    encode_batch_sizes = [1]
-    num_workerss = [1]
+    encode_batch_sizes = [1, 2, 4, 8, 16]
+    num_workerss = [0]
     times = np.zeros((5, 4), dtype=float)
     for i, encode_batch_size in enumerate(encode_batch_sizes):
         for j, num_workers in enumerate(num_workerss):
@@ -50,7 +49,7 @@ def optimize():
             start = time.time()
             convert_maestro(
                 output_dir=f"../../resources/encodec_latents/maestro_20samples_20seconds_{num_workers}workers_{encode_batch_size}batch",
-                n_samples=2,
+                n_samples=20,
                 duration=20,
                 label_type="power",
                 encode_batch_size=encode_batch_size,
@@ -60,7 +59,7 @@ def optimize():
             times[i, j] = end - start
             print(f"Time: {end - start}s")
 
-    with open("../../results/maestro/encoding_timings.csv", "w", newline="") as f:
+    with open("../../results/maestro/batch_timings.csv", "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(["batch_size", "num_workers", "seconds"])
         for i, ebs in enumerate(encode_batch_sizes):

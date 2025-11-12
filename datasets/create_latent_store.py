@@ -15,9 +15,10 @@ import torchaudio
 import zstandard
 from encodec import EncodecModel
 from torch import Tensor
-from torch.utils.data import Dataset as TorchDataset, DataLoader
+from torch.utils.data import DataLoader
 
-DatasetItem = Tuple[Tensor, Tensor]
+from datasets.poly_dataset import PolyphonicAsyncDataset
+from datasets.wav_midi_salience_dataset import WavMidiSalienceDataset
 
 _DEFAULT_SAMPLES_PER_SHARD = 10_000
 
@@ -29,10 +30,10 @@ class _MemberInfo:
 
 
 def create_latent_store(
-        dataset: TorchDataset[DatasetItem],
+        dataset: PolyphonicAsyncDataset | WavMidiSalienceDataset,
         dataset_path: Union[str, Path],
-        dataset_sample_rate: int,
         *,
+        model_type: str = "24khz",
         target_bandwidth: float = 24.0,  # kbit/s
         metadata: Optional[Dict[str, Any]] = None,
         device: Optional[torch.device] = None,
@@ -50,7 +51,7 @@ def create_latent_store(
             elements are stored alongside the latent representation.
         dataset_path: Destination directory for the WebDataset shards. Parent
             directories are created automatically.
-        dataset_sample_rate: Original sample rate of the dataset audio.
+        model_type: Type of the encodec model, "24khz" or "48khz".
         device: Optional torch device for running the EnCodec encoder. Defaults
             to ``"cuda"`` when available otherwise ``"cpu"``.
         target_bandwidth: Optional bandwidth value passed to the encoder via
@@ -74,6 +75,8 @@ def create_latent_store(
     """
     total_samples = len(dataset)  # type: ignore[arg-type]
 
+    dataset_sample_rate = dataset.get_sample_rate()
+
     path = Path(dataset_path)
     path.mkdir(parents=True, exist_ok=True)
 
@@ -85,7 +88,14 @@ def create_latent_store(
     if encode_batch_size <= 0:
         raise ValueError("encode_batch_size must be a positive integer.")
 
-    model = EncodecModel.encodec_model_48khz() if dataset_sample_rate >= 48_000 else EncodecModel.encodec_model_24khz()
+    model = None
+    match model_type.lower():
+        case "24khz":
+            model = EncodecModel.encodec_model_24khz()
+        case "48khz":
+            model = EncodecModel.encodec_model_48khz()
+        case _:
+            raise ValueError(f"Unknown model type: {model_type}")
     model.set_target_bandwidth(target_bandwidth)
     model = model.to(device)
     model.eval()
@@ -101,6 +111,7 @@ def create_latent_store(
         "dataset_sample_rate": int(dataset_sample_rate),
         "encoder_sample_rate": int(model.sample_rate),
         "encoder_channels": int(model.channels),
+        "model_type": model_type,
         "target_bandwidth": model.bandwidth,
         "dataset_type": type(dataset).__qualname__,
         "shard_size": int(samples_per_shard),
@@ -190,13 +201,10 @@ def _encode_batch(
 
     if waveform_batch.dim() != 3:
         raise ValueError("Waveform batch must have shape (batch, channels, samples)")
-    if waveform_batch.shape[1] == 1:
-        mono_waveform = waveform_batch
-    elif waveform_batch.shape[1] == 2:
-        mono_waveform = waveform_batch.mean(dim=1, keepdim=True)
-    else:
-        raise ValueError(f"Waveform must be mono or stereo. Number of channels: {waveform_batch.shape[1]}")
+    if waveform_batch.shape[1] > 2:
+        raise ValueError(f"Waveform batch must be mono or stereo. Channels {waveform_batch.shape[1]}")
 
+    mono_waveform = waveform_batch.mean(dim=1, keepdim=True)
     resampler = torchaudio.transforms.Resample(int(dataset_sample_rate), int(model.sample_rate))
     resampled_waveforms = resampler(mono_waveform)
 
@@ -425,4 +433,3 @@ def _compress_tar_with_offsets(tar_path: Path, zst_path: Path, members: Sequence
         end = offsets_in_order[idx + 1]
         results.append({"member": name, "offset": start, "size": end - start})
     return results
-

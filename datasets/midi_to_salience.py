@@ -136,14 +136,15 @@ def midi_to_salience(
 
     activation = _compute_activation(midi, events, frame_rate, sustain_extend)
 
-    chunk_frames = int(round(chunk_duration * frame_rate))
-    total_frames = activation.shape[0] - (activation.shape[0] % chunk_frames)
+    frames_per_chunk = int(round(chunk_duration * frame_rate))
+    total_frames = activation.shape[0] - (activation.shape[0] % frames_per_chunk)
+    total_chunks = total_frames // frames_per_chunk
     if total_frames <= 0:
         return []
     activation = activation[:total_frames]
 
     if label_type == "activation":
-        chunks = activation.view(total_frames // chunk_frames, chunk_frames, 128)
+        chunks = activation.view(total_chunks, frames_per_chunk, 128)
         return [chunk.clone() for chunk in chunks]
 
     if label_type != "power":
@@ -157,11 +158,9 @@ def midi_to_salience(
 
     power_chunks: List[torch.Tensor] = []
 
-    sampling_rate: int | None = None
-    chunk_index = 0
-
-    while True:
-        offset = chunk_index * chunk_duration
+    for i in range(total_chunks):
+        offset = i * chunk_duration
+        # pad window on both sides with half a frame
         audio_chunk, sr = librosa.load(
             audio_path,
             sr=None,
@@ -169,31 +168,32 @@ def midi_to_salience(
             offset=offset,
             duration=chunk_duration,
         )
-        if audio_chunk.size == 0:
-            break
-        if audio_chunk.shape[0] < int(round(chunk_duration * sr)):
-            break
 
-        hop_length = sampling_rate // frame_rate
+        hop_length = sr // frame_rate
         cqt = librosa.cqt(
             audio_chunk,
-            sr=sampling_rate,
+            sr=sr,
             hop_length=hop_length,
             fmin=librosa.midi_to_hz(0),
             n_bins=128,
             bins_per_octave=12,
-        )
+        ).T
+        # remove at most one time frame
+        if cqt.shape[0] == frames_per_chunk + 1:
+            cqt = cqt[:frames_per_chunk]
+        else:
+            raise ValueError(f"Expected cqt to have {frames_per_chunk + 1} frames, but was {cqt.shape[0]}")
         power = np.abs(cqt) ** 2
-        chunk_tensor = torch.from_numpy(power.T.astype(np.float32))
+        chunk_tensor = torch.from_numpy(power)
         power_chunks.append(chunk_tensor.contiguous())
-        chunk_index += 1
 
     if not power_chunks:
         return []
 
     power_tensor = torch.cat(power_chunks, dim=0)
-    assert power_tensor.shape == (total_frames, 128)
+    if power_tensor.shape[0] != total_frames:
+        raise ValueError(f"Power tensor must have {total_frames} frames, but was {power_tensor.shape[0]}")
 
     masked = power_tensor * activation
-    chunks = masked.view(total_frames // chunk_frames, chunk_frames, 128)
+    chunks = masked.view(total_chunks, frames_per_chunk, 128)
     return [chunk.clone() for chunk in chunks]
