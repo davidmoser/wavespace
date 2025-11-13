@@ -73,6 +73,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             latents, targets = batch  # latents: B,L,T, targets: B,F,T
             latents = latents.to(device)
             targets = targets.to(device)
+            targets = torch.clip(targets / config.label_max_value, 0, 1)
             logits = model(latents)
             loss = criterion(logits, targets)
 

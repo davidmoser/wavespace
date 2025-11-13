@@ -1,0 +1,18 @@
+batch_size: 8
+device: cpu
+eval_interval: 20
+lr: 0.0001
+model_config:
+  dropout: 0.
+  seq_len: 1500
+model_name: TokenTransformer
+num_workers: 4
+sample_duration: 20
+save: false
+transpose_labels: true
+seq_len: 1500
+split_train_set: 0.1
+steps: 20
+train_dataset_path: "{volume}/encodec_latents/maestro_power_10000sam_20sec/"
+warmup_fraction: 0.03
+weight_decay: 0.01
