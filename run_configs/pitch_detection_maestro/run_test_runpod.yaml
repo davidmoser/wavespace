@@ -1,7 +1,7 @@
 batch_size: 128
 device: cuda
 eval_interval: 30
-lr: 0.0001
+lr: 0.001
 model_config:
   dropout: 0.
   seq_len: 1500
@@ -14,6 +14,7 @@ num_workers: 4
 sample_duration: 20
 save: false
 transpose_labels: true
+label_max_value: 2.0
 seq_len: 1500
 split_train_set: 0.1
 steps: 600

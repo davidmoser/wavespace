@@ -104,7 +104,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             should_eval = current_step % config.eval_interval == 0
             if should_eval and val_loader is not None:
                 model.eval()
-                val_metrics = evaluate(model, val_loader)
+                val_metrics = evaluate(model, val_loader, config.label_max_value)
                 val_loss = val_metrics.get("loss", float("inf"))
                 print(
                     f"Validation @ Epoch {epoch} Step {current_step}: "

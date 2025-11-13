@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
 
@@ -24,10 +23,7 @@ class _LoggingSample:
 
 
 @torch.no_grad()
-def evaluate(model: Module, data_loader: Optional[DataLoader]) -> Dict[str, float]:
-    if data_loader is None:
-        return {"loss": math.nan}
-
+def evaluate(model: Module, data_loader: DataLoader, label_max_value: float) -> Dict[str, float]:
     device = next(model.parameters()).device
     criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(30))
 
@@ -39,6 +35,7 @@ def evaluate(model: Module, data_loader: Optional[DataLoader]) -> Dict[str, floa
 
         latents = latents.to(device)
         targets = targets.to(device)
+        targets = torch.clip(targets / label_max_value, 0., 1.)
 
         logits = model(latents)
         loss = criterion(logits, targets)
