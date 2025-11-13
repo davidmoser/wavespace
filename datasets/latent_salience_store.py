@@ -23,9 +23,11 @@ class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
             self,
             store_path: Union[str, Path],
             *,
+            transpose_labels: bool = False,
             map_location: Optional[Union[str, torch.device]] = "cpu",
     ) -> None:
         self._root = Path(store_path)
+        self._transpose_labels = transpose_labels
         if not self._root.is_dir():
             raise FileNotFoundError(f"Dataset store not found: {self._root}")
 
@@ -49,6 +51,8 @@ class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
 
         record = self._records[index]
         latents, _, label = self._load_payload(record)
+        if self._transpose_labels:
+            label = label.T
 
         return latents, label
 

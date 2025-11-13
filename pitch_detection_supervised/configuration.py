@@ -15,6 +15,7 @@ class Configuration:
     sample_duration: float = 1.0
     seq_len: int = 75
     latent_dim: int = 128
+    transpose_labels: bool = False
 
     # optimization
     epochs: Optional[int] = None

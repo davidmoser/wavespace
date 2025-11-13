@@ -181,20 +181,20 @@ def _load_datasets(config: Configuration) -> Tuple[Dataset, Optional[Dataset]]:
     if config.split_train_set is not None and config.val_dataset_path:
         raise ValueError("Cannot use a validation dataset path and split the training dataset simultaneously.")
 
-    train_dataset = _load_dataset(config.train_dataset_path)
+    train_dataset = _load_dataset(config.train_dataset_path, config.transpose_labels)
     if config.split_train_set:
         val_length = math.ceil(len(train_dataset) * config.split_train_set)
         train_length = len(train_dataset) - val_length
         return random_split(train_dataset, [train_length, val_length])
     elif config.val_dataset_path:
-        val_dataset = _load_dataset(config.val_dataset_path)
+        val_dataset = _load_dataset(config.val_dataset_path, config.transpose_labels)
         return train_dataset, val_dataset
     else:
         return train_dataset, None
 
 
-def _load_dataset(path: str) -> Dataset:
-    return LatentSalienceStore(path)
+def _load_dataset(path: str, transpose_labels: bool) -> Dataset:
+    return LatentSalienceStore(path, transpose_labels=transpose_labels)
 
 
 def _create_loader(

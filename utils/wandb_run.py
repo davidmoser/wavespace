@@ -1,13 +1,15 @@
-
 import csv
+import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, MutableMapping, Optional, Sequence
+from typing import Any, MutableMapping, Sequence
 
 import requests
 import wandb
 import yaml
+
+from pitch_detection_supervised.train import single_run_resume
 
 
 def _format_values(value: Any, format_kwargs: dict[str, Any]) -> Any:
@@ -23,21 +25,31 @@ def _format_values(value: Any, format_kwargs: dict[str, Any]) -> Any:
     return value
 
 
+VOLUMES = {
+    "local": "../../resources",
+    "docker": "../resources",
+    "runpod": "/runpod-volume",
+}
+
+
 def run_wandb_run(
         config_path: str,
         *,
         project: str,
         run_namespace: str,
         endpoint: str,
-        is_runpod: bool = True,
-) -> tuple[str, str, Optional[str]]:
+        run_mode: str = "runpod",
+):
     """Launch a single W&B run and trigger the corresponding RunPod job."""
+
+    if not run_mode in VOLUMES:
+        raise ValueError(f"Invalid run mode: {run_mode}")
 
     config_file = Path(config_path)
     with config_file.open("r", encoding="utf-8") as handle:
         config_data: dict[str, Any] = yaml.safe_load(handle)
 
-    format_kwargs = {"volume": "/runpod-volume" if is_runpod else "../resources"}
+    format_kwargs = {"volume": VOLUMES[run_mode]}
     config_data = _format_values(config_data, format_kwargs)
 
     wandb_api_key = os.environ["WANDB_API_KEY"]
@@ -54,8 +66,7 @@ def run_wandb_run(
         config_filename=config_file.name,
     )
 
-    job_id: Optional[str] = None
-    if is_runpod:
+    if run_mode == "runpod":
         runpod_api_key = os.environ["RUNPOD_API_KEY"]
         headers = {"Authorization": f"Bearer {runpod_api_key}"}
         payload = {"input": {"run_id": run_id}}
@@ -68,8 +79,15 @@ def run_wandb_run(
         response.raise_for_status()
         job_id = response.json()["id"]
         print(f"Job ID: {job_id}")
-
-    return run_id, run_url, job_id
+    elif run_mode == "local":
+        single_run_resume(run_id)
+    elif run_mode == "docker":
+        path = "../../docker/pitch_detection_supervised/test_input.json"
+        with open(path) as f:
+            data = json.load(f)
+        data["input"]["run_id"] = run_id
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
 
 
 def _record_run_details(*, run_id: str, config_directory: Path, config_filename: str) -> None:
