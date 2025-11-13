@@ -6,5 +6,5 @@ run_wandb_run(
     project="pitch-detection-supervised",
     run_namespace="david-moser-ggg/pitch-detection-supervised",
     endpoint="9hr07oet4wfndt",
-    run_mode="local",
+    run_mode="runpod",
 )

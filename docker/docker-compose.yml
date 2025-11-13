@@ -37,7 +37,7 @@ services:
     build:
       context: ..
       dockerfile: docker/pitch_detection_supervised/Dockerfile
-    image: gebregl/wavespace-pitch-detection-supervised:v5
+    image: gebregl/wavespace-pitch-detection-supervised:v6
     volumes:
       - /home/david/mine/projects/wavespace/resources:/resources
     environment:
