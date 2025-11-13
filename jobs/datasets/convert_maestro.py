@@ -62,8 +62,9 @@ def optimize():
 
 if __name__ == "__main__":
     convert_maestro(
-        output_dir=f"../../resources/encodec_latents/maestro_2000samples_20seconds",
-        n_samples=2000,
+        output_dir=f"../../resources/encodec_latents/maestro_power_10000sam_20sec",
+        n_samples=5000,
+        samples_per_shard=500,
         duration=20,
         label_type="power",
         encode_batch_size=4,

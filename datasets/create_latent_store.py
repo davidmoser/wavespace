@@ -151,8 +151,7 @@ def create_latent_store(
             if batch_size == 0:
                 continue
 
-            if next_dataset_index % 100 == 0:
-                print(f"Sample index {next_dataset_index}/{total_samples}")
+            print(f"Sample index {next_dataset_index}/{total_samples}")
 
             encoded_batch = _encode_batch(
                 batch_items,
