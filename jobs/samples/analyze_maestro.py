@@ -7,7 +7,7 @@ store = LatentSalienceStore(
     transpose_labels=True,
 )
 
-sample, label = store[2]
+sample, label = store[16]
 
 hist, bin_edges = torch.histogram(label, bins=10)
 print(torch.round(hist / hist.sum(), decimals=4))

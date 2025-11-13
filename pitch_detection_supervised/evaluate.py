@@ -63,6 +63,7 @@ def _compute_batch_metrics(
 
 def _prepare_logging_samples(
         dataset: Optional[Dataset],
+        label_max_value: float,
         seed: int = LOG_SAMPLE_SEED,
         count: int = LOG_SAMPLE_COUNT,
 ) -> List[_LoggingSample]:
@@ -82,7 +83,7 @@ def _prepare_logging_samples(
     for idx in indices:
         latents, label = dataset[idx]
         latents_tensor = latents.detach().to(dtype=torch.float32).cpu()
-        target_tensor = label.detach().to(dtype=torch.float32).cpu()
+        target_tensor = torch.clip(label.detach().to(dtype=torch.float32).cpu() / label_max_value, 0., 1.)
         samples.append(_LoggingSample(index=idx, latents=latents_tensor, target=target_tensor))
     return samples
 

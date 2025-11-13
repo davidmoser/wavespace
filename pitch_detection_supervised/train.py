@@ -57,8 +57,8 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
                                                        config.steps)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lr_lambda)
 
-    train_log_samples = _prepare_logging_samples(train_dataset)
-    val_log_samples = _prepare_logging_samples(val_dataset)
+    train_log_samples = _prepare_logging_samples(train_dataset, config.label_max_value)
+    val_log_samples = _prepare_logging_samples(val_dataset, config.label_max_value)
 
     current_step = 1
     best_val_loss = float("inf")
