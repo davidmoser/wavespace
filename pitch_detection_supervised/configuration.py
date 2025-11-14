@@ -25,6 +25,7 @@ class Configuration:
     weight_decay: float = 0.02
     max_grad_norm: float = 1.0
     warmup_fraction: float = 0.03
+    bce_pos_weight: float = 30.
 
     # device and reproducibility
     device: Optional[str] = None  # None means "cuda if available else cpu"

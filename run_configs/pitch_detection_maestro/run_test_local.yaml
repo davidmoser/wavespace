@@ -10,6 +10,7 @@ num_workers: 4
 sample_duration: 20
 save: false
 transpose_labels: true
+bce_pos_weight: 1.0
 seq_len: 1500
 split_train_set: 0.1
 steps: 20

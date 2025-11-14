@@ -50,7 +50,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
     model = create_model(config.model_name, config.model_config)
     model.to(device)
     model.train()
-    criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(30))
+    criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(config.bce_pos_weight))
     optimizer = AdamW(model.parameters(), lr=config.lr, weight_decay=config.weight_decay)
 
     epochs, steps, lr_lambda = create_warmup_cosine_lr(len(train_loader), config.warmup_fraction, config.epochs,
@@ -104,7 +104,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             should_eval = current_step % config.eval_interval == 0
             if should_eval and val_loader is not None:
                 model.eval()
-                val_metrics = evaluate(model, val_loader, config.label_max_value)
+                val_metrics = evaluate(model, val_loader, config.label_max_value, config.bce_pos_weight)
                 val_loss = val_metrics.get("loss", float("inf"))
                 print(
                     f"Validation @ Epoch {epoch} Step {current_step}: "

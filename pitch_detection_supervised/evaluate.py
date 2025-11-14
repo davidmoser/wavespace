@@ -23,9 +23,9 @@ class _LoggingSample:
 
 
 @torch.no_grad()
-def evaluate(model: Module, data_loader: DataLoader, label_max_value: float) -> Dict[str, float]:
+def evaluate(model: Module, data_loader: DataLoader, label_max_value: float, bce_pos_weight: float) -> Dict[str, float]:
     device = next(model.parameters()).device
-    criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(30))
+    criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(bce_pos_weight))
 
     total_loss = torch.zeros(1, device=device)
 
