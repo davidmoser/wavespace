@@ -153,6 +153,10 @@ def midi_to_salience(
     if cqts is None:
         raise ValueError("cqts must be provided when label_type is 'power'")
 
+    # sometimes MIDI ends a few seconds before wav => there might be one less salience chunk => drop wav chunk
+    if len(cqts) == total_chunks + 1:
+        cqts = cqts[:-1]
+
     if len(cqts) != total_chunks:
         raise ValueError(
             f"CQT chunk count ({len(cqts)}) must match MIDI chunk count ({total_chunks}).",

@@ -27,7 +27,6 @@ def create_cqt_store(
         *,
         metadata: Optional[Dict[str, Any]] = None,
         samples_per_shard: int = DEFAULT_SAMPLES_PER_SHARD,
-        batch_size: int = 8,
         num_workers: int = 1,
         sample_callback: Optional[Callable[[int, Tensor], None]] = None,
 ) -> None:
@@ -38,11 +37,6 @@ def create_cqt_store(
 
     path = Path(dataset_path)
     path.mkdir(parents=True, exist_ok=True)
-
-    if samples_per_shard <= 0:
-        raise ValueError("samples_per_shard must be a positive integer.")
-    if batch_size <= 0:
-        raise ValueError("batch_size must be a positive integer.")
 
     shard_count = math.ceil(total_samples / samples_per_shard)
     shard_pad = max(3, len(str(shard_count - 1)))
@@ -67,7 +61,6 @@ def create_cqt_store(
     workers = 0 if num_workers is None else num_workers
     loader = DataLoader(
         dataset,
-        batch_size=batch_size,
         num_workers=workers,
         pin_memory=False,
         shuffle=False,

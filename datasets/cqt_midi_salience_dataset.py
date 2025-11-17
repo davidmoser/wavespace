@@ -130,6 +130,10 @@ class CqtMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         if not salience_chunks:
             return [], []
 
+        # sometimes MIDI ends a few seconds before wav => there might be one less salience chunk => drop wav chunk
+        if len(cqts) == len(salience_chunks) + 1:
+            cqts = cqts[:-1]
+
         if len(cqts) != len(salience_chunks):
             raise RuntimeError(
                 f"CQT chunks ({len(cqts)}) and salience chunks ({len(salience_chunks)}) don't match.\nFile: {wav_path}",

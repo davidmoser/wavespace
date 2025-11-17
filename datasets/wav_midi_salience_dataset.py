@@ -153,12 +153,11 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         waveform = waveform[:, :usable_samples]
         audio_chunks = [chunk.contiguous() for chunk in waveform.split(chunk_samples, dim=1)]
 
-        # sometimes the midi stops a few seconds before the wav
-        # => sometimes (rare) less midi chunks than audio chunks
-        # => throw away at most one audio chunk
+        # sometimes MIDI ends a few seconds before wav => there might be one less salience chunk => drop wav chunk
         if len(audio_chunks) == len(salience_chunks) + 1:
             audio_chunks = audio_chunks[:-1]
             print(f"Throwing away last audio chunk for:\n{wav_path}")
+
         if len(audio_chunks) != len(salience_chunks):
             raise Exception(
                 f"Audio chunks ({len(audio_chunks)}) and salience chunks ({len(salience_chunks)}) don't match.\nFile: {wav_path}.")
