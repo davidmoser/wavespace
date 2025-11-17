@@ -1,0 +1,57 @@
+method: random
+metric:
+  goal: minimize
+  name: val/loss
+parameters:
+  batch_size:
+    value: 128
+  device:
+    value: cuda
+  eval_interval:
+    value: 20
+  lr:
+    distribution: log_uniform_values
+    max: 0.01
+    min: 0.001
+  model_config:
+    parameters:
+      dropout:
+        value: 0
+      seq_len:
+        value: 1500
+      d_model:
+        value: 512
+      nhead:
+        value: 8
+      num_layers:
+        value: 6
+      ffn_dim:
+        value: 2048
+  model_name:
+    value: TokenTransformer
+  num_workers:
+    value: 4
+  sample_duration:
+    value: 20
+  save:
+    value: false
+  transpose_labels:
+    value: true
+  bce_pos_weight:
+    value: 5.0
+  label_max_value:
+    value: 2.0
+  seq_len:
+    value: 1500
+  split_train_set:
+    value: 0.1
+  steps:
+    value: 100
+  train_dataset_path:
+    value: /runpod-volume/encodec_latents/maestro_power_10000sam_20sec/
+  warmup_fraction:
+    value: 0.03
+  weight_decay:
+    value: 0.01
+program: sweep_run.py
+run_cap: 20

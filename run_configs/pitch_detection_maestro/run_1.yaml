@@ -1,7 +1,7 @@
 batch_size: 128
 device: cuda
 eval_interval: 30
-lr: 0.001
+lr: 0.002
 model_config:
   dropout: 0.
   seq_len: 1500
@@ -14,10 +14,11 @@ num_workers: 4
 sample_duration: 20
 save: false
 transpose_labels: true
+bce_pos_weight: 5.0
 label_max_value: 2.0
 seq_len: 1500
 split_train_set: 0.1
-steps: 600
+steps: 1000
 train_dataset_path: "{volume}/encodec_latents/maestro_power_10000sam_20sec/"
 warmup_fraction: 0.03
 weight_decay: 0.01
