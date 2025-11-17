@@ -1,4 +1,4 @@
-"""Iterable dataset that pairs WAV audio chunks with MIDI-derived salience tensors."""
+"""Iterable dataset that yields CQT chunks with MIDI-derived salience labels."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import List, Tuple
 
 import torch
-import torchaudio
 from torch import Tensor
 from torch.utils.data import IterableDataset, get_worker_info
 
@@ -18,8 +17,8 @@ _AUDIO_EXTENSIONS: Tuple[str, ...] = (".wav", ".wave")
 _MIDI_EXTENSIONS: Tuple[str, ...] = (".mid", ".midi")
 
 
-class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
-    """Dataset that yields audio and MIDI salience tensor pairs."""
+class CqtMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
+    """Dataset that yields CQT tensors and MIDI salience tensor pairs."""
 
     def __init__(
             self,
@@ -27,8 +26,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
             wav_midi_path: str | Path,
             n_samples: int,
             duration: float,
-            sample_rate: int,
-            label_frame_rate: float,
+            frame_rate: int,
             label_type: str = "activation",
             seed: int = 20,
     ) -> None:
@@ -38,8 +36,7 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
 
         self.n_samples = int(n_samples)
         self.duration = float(duration)
-        self.sample_rate = int(sample_rate)
-        self.label_frame_rate = float(label_frame_rate)
+        self.frame_rate = int(frame_rate)
 
         label_type_value = str(label_type).lower()
         if label_type_value not in {"power", "activation"}:
@@ -53,8 +50,6 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
 
         if not self._base_files:
             raise ValueError(f"No WAV files found under {self.root}")
-
-        self._frame_rate = int(round(self.label_frame_rate))
 
     def __len__(self) -> int:  # pragma: no cover - optional for IterableDataset
         return self.n_samples
@@ -76,34 +71,34 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         produced = 0
         pointer = 0
 
-        audio_buffer: List[Tensor] = []
+        cqt_buffer: List[Tensor] = []
         label_buffer: List[Tensor] = []
         buffer_index = 0
 
         while produced < target_samples:
-            if buffer_index >= len(audio_buffer):
-                audio_buffer = []
+            if buffer_index >= len(cqt_buffer):
+                cqt_buffer = []
                 label_buffer = []
                 buffer_index = 0
 
                 attempts = 0
                 max_attempts = len(files)
-                while not audio_buffer and attempts < max_attempts:
+                while not cqt_buffer and attempts < max_attempts:
                     if pointer >= len(files):
                         pointer = 0
                     wav_path = files[pointer]
                     pointer += 1
-                    audio_buffer, label_buffer = self._prepare_file_chunks(wav_path)
+                    cqt_buffer, label_buffer = self._prepare_file_chunks(wav_path)
                     attempts += 1
 
-                if not audio_buffer:
+                if not cqt_buffer:
                     break
 
-            audio_chunk = audio_buffer[buffer_index]
+            cqt_chunk = cqt_buffer[buffer_index]
             label_chunk = label_buffer[buffer_index]
             buffer_index += 1
             produced += 1
-            yield audio_chunk, label_chunk
+            yield cqt_chunk, label_chunk
 
     def _collect_wav_files(self, root: Path) -> List[Path]:
         wav_files: List[Path] = []
@@ -116,54 +111,33 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
         return wav_files
 
     def _prepare_file_chunks(self, wav_path: Path) -> Tuple[List[Tensor], List[Tensor]]:
-        # Label chunks
         midi_path = self._resolve_midi_path(wav_path)
-        cqts: List[Tensor] | None = None
-        if self.label_type == "power":
-            cqts = prepare_cqts(
-                audio_path=str(wav_path),
-                chunk_duration=self.duration,
-                frame_rate=self._frame_rate,
-            )
-            if not cqts:
-                return [], []
+        cqts = prepare_cqts(
+            audio_path=str(wav_path),
+            chunk_duration=self.duration,
+            frame_rate=self.frame_rate,
+        )
+        if not cqts:
+            return [], []
 
         salience_chunks = midi_to_salience(
             midi_path=str(midi_path),
             chunk_duration=self.duration,
-            frame_rate=self._frame_rate,
+            frame_rate=self.frame_rate,
             label_type=self.label_type,
             cqts=cqts,
         )
         if not salience_chunks:
             return [], []
+
+        if len(cqts) != len(salience_chunks):
+            raise RuntimeError(
+                f"CQT chunks ({len(cqts)}) and salience chunks ({len(salience_chunks)}) don't match.\nFile: {wav_path}",
+            )
+
+        cqts = [chunk.to(dtype=torch.float32).contiguous() for chunk in cqts]
         salience_chunks = [chunk.to(dtype=torch.float32).contiguous() for chunk in salience_chunks]
-
-        # Audio chunks
-        waveform, sr = torchaudio.load(str(wav_path))
-        waveform = waveform.mean(dim=0, keepdim=True)  # to mono
-        waveform = torchaudio.functional.resample(waveform, sr, self.sample_rate)
-
-        total_samples = waveform.shape[1]
-        chunk_samples = int(self.sample_rate * self.duration)
-        usable_samples = total_samples - (total_samples % chunk_samples)
-        if usable_samples < chunk_samples:
-            return [], []
-
-        waveform = waveform[:, :usable_samples]
-        audio_chunks = [chunk.contiguous() for chunk in waveform.split(chunk_samples, dim=1)]
-
-        # sometimes the midi stops a few seconds before the wav
-        # => sometimes (rare) less midi chunks than audio chunks
-        # => throw away at most one audio chunk
-        if len(audio_chunks) == len(salience_chunks) + 1:
-            audio_chunks = audio_chunks[:-1]
-            print(f"Throwing away last audio chunk for:\n{wav_path}")
-        if len(audio_chunks) != len(salience_chunks):
-            raise Exception(
-                f"Audio chunks ({len(audio_chunks)}) and salience chunks ({len(salience_chunks)}) don't match.\nFile: {wav_path}.")
-
-        return audio_chunks, salience_chunks
+        return cqts, salience_chunks
 
     def _resolve_midi_path(self, wav_path: Path) -> Path:
         stem = wav_path.stem
@@ -183,5 +157,5 @@ class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
 
         raise FileNotFoundError(f"No MIDI file matching {wav_path.name} found in {parent}")
 
-    def get_sample_rate(self) -> int:
-        return self.sample_rate
+    def get_frame_rate(self) -> int:
+        return self.frame_rate

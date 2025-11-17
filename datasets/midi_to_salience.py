@@ -1,7 +1,7 @@
 """Utilities for converting MIDI data into salience tensors."""
 
 from dataclasses import dataclass
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import mido
 import torch
@@ -114,7 +114,7 @@ def midi_to_salience(
         frame_rate: int = 75,
         label_type: str = "activation",
         sustain_extend: bool = True,
-        audio_path: str | None = None,
+        cqts: Optional[Sequence[torch.Tensor]] = None,
 ) -> List[torch.Tensor]:
     """Convert a MIDI file into salience tensors.
 
@@ -124,7 +124,7 @@ def midi_to_salience(
         frame_rate: Target sample rate for temporal resolution.
         label_type: Either ``"activation"`` or ``"power"``.
         sustain_extend: If ``True``, emulate sustain pedal behaviour.
-        audio_path: Path to an audio file when ``label_type`` is ``"power"``.
+        cqts: Pre-computed CQT power tensors when ``label_type`` is ``"power"``.
 
     Returns:
         A list of tensors of shape ``(chunk_duration * sample_rate, 128)``.
@@ -150,50 +150,85 @@ def midi_to_salience(
     if label_type != "power":
         raise ValueError("label_type must be either 'activation' or 'power'")
 
-    if audio_path is None:
-        raise ValueError("audio_path must be provided when label_type is 'power'")
+    if cqts is None:
+        raise ValueError("cqts must be provided when label_type is 'power'")
 
-    import numpy as np
-    import librosa
-
-    power_chunks: List[torch.Tensor] = []
-
-    for i in range(total_chunks):
-        offset = i * chunk_duration
-        # pad window on both sides with half a frame
-        audio_chunk, sr = librosa.load(
-            audio_path,
-            sr=None,
-            mono=True,
-            offset=offset,
-            duration=chunk_duration,
+    if len(cqts) != total_chunks:
+        raise ValueError(
+            f"CQT chunk count ({len(cqts)}) must match MIDI chunk count ({total_chunks}).",
         )
 
-        hop_length = sr // frame_rate
-        cqt = librosa.cqt(
-            audio_chunk,
-            sr=sr,
-            hop_length=hop_length,
-            fmin=librosa.midi_to_hz(0),
-            n_bins=128,
-            bins_per_octave=12,
-        ).T
-        # remove at most one time frame
-        if cqt.shape[0] == frames_per_chunk + 1:
-            cqt = cqt[:frames_per_chunk]
-        else:
-            raise ValueError(f"Expected cqt to have {frames_per_chunk + 1} frames, but was {cqt.shape[0]}")
-        power = np.abs(cqt) ** 2
-        chunk_tensor = torch.from_numpy(power)
-        power_chunks.append(chunk_tensor.contiguous())
-
-    if not power_chunks:
-        return []
-
+    power_chunks = [chunk.to(dtype=torch.float32).contiguous() for chunk in cqts]
     power_tensor = torch.cat(power_chunks, dim=0)
     if power_tensor.shape[0] != total_frames:
-        raise ValueError(f"Power tensor must have {total_frames} frames, but was {power_tensor.shape[0]}")
+        raise ValueError(
+            f"Power tensor must have {total_frames} frames, but was {power_tensor.shape[0]}",
+        )
 
     masked = power_tensor * activation
     chunks = masked.view(total_chunks, frames_per_chunk, 128)
     return [chunk.clone() for chunk in chunks]
+
+
+def prepare_cqts(
+        audio_path: str,
+        *,
+        chunk_duration: float,
+        frame_rate: int,
+) -> List[torch.Tensor]:
+    """Compute CQT power tensors for an audio file."""
+
+    import librosa
+    import numpy as np
+    import soundfile as sf
+
+    with sf.SoundFile(audio_path) as audio_file:
+        sr = int(audio_file.samplerate)
+        total_samples = int(audio_file.frames)
+
+    chunk_samples = int(round(chunk_duration * sr))
+    frames_per_chunk = int(round(chunk_duration * frame_rate))
+    if chunk_samples <= 0 or frames_per_chunk <= 0:
+        return []
+
+    usable_samples = total_samples - (total_samples % chunk_samples)
+    if usable_samples < chunk_samples:
+        return []
+
+    total_chunks = usable_samples // chunk_samples
+    hop_length = sr // frame_rate
+    if hop_length <= 0:
+        raise ValueError("frame_rate must be less than or equal to the audio sample rate")
+
+    cqt_chunks: List[torch.Tensor] = []
+    with sf.SoundFile(audio_path) as audio_file:
+        for chunk_index in range(total_chunks):
+            audio_file.seek(chunk_index * chunk_samples)
+            samples = audio_file.read(chunk_samples, dtype="float32", always_2d=True)
+            if samples.shape[0] != chunk_samples:
+                break
+            chunk = samples.mean(axis=1)
+            cqt = librosa.cqt(
+                np.ascontiguousarray(chunk),
+                sr=sr,
+                hop_length=hop_length,
+                fmin=librosa.midi_to_hz(0),
+                n_bins=128,
+                bins_per_octave=12,
+            ).T
+            # remove at most one time frame
+            if cqt.shape[0] == frames_per_chunk + 1:
+                cqt = cqt[:frames_per_chunk]
+            elif cqt.shape[0] != frames_per_chunk:
+                raise ValueError(
+                    f"Expected cqt to have {frames_per_chunk}±1 frames, but was {cqt.shape[0]}",
+                )
+            power = (np.abs(cqt) ** 2).astype(np.float32, copy=False)
+            cqt_chunks.append(torch.from_numpy(power).contiguous())
+
+    if len(cqt_chunks) != total_chunks:
+        raise ValueError(
+            f"Expected {total_chunks} CQT chunks but generated {len(cqt_chunks)} for {audio_path}",
+        )
+
+    return cqt_chunks

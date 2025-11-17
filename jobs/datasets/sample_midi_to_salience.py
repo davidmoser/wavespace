@@ -1,4 +1,4 @@
-from datasets.midi_to_salience import midi_to_salience
+from datasets.midi_to_salience import midi_to_salience, prepare_cqts
 from utils.plot_cqt_comparison import plot_cqt_comparison
 
 
@@ -8,12 +8,17 @@ def sample_midi_to_salience(
         png_path: str,
         label_type: str,
 ):
+    cqts = prepare_cqts(
+        audio_path=wav_path,
+        chunk_duration=30.0,
+        frame_rate=75,
+    )
     salience = midi_to_salience(
         midi_path=midi_path,
         chunk_duration=30.0,
         frame_rate=75,
         label_type=label_type,
-        audio_path=wav_path,
+        cqts=cqts,
     )
     plot_cqt_comparison(
         audio_file=wav_path,
