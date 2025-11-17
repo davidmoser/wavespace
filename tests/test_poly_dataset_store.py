@@ -30,7 +30,6 @@ def test_polyphonic_dataset_store_roundtrip(tmp_path: Path) -> None:
     create_latent_store(
         dataset,
         output_path,
-        dataset_sample_rate=dataset.sample_rate,
         samples_per_shard=4,
         latent_callback=capture_latents,
     )

@@ -16,6 +16,7 @@ def test_wav_midi_dataset_to_store(tmp_path: Path) -> None:
         duration=20,
         label_frame_rate=75,
         label_type="activation",
+        sample_rate=44_100,
     )
 
     output_path = tmp_path / "poly_store"
