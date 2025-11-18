@@ -25,11 +25,13 @@ class TensorStore(Dataset[Tuple[Tensor, Tensor]]):
             store_path: Union[str, Path],
             *,
             sample_property: str = "latents",
+            transpose_samples: bool = False,
             transpose_labels: bool = False,
             map_location: Optional[Union[str, torch.device]] = "cpu",
     ) -> None:
         self._root = Path(store_path)
         self._sample_property = sample_property
+        self._transpose_samples = transpose_samples
         self._transpose_labels = transpose_labels
         if not self._root.is_dir():
             raise FileNotFoundError(f"Dataset store not found: {self._root}")
@@ -54,6 +56,8 @@ class TensorStore(Dataset[Tuple[Tensor, Tensor]]):
 
         record = self._records[index]
         sample, label = self._load_payload(record)
+        if self._transpose_samples:
+            sample = sample.T
         if self._transpose_labels:
             label = label.T
 

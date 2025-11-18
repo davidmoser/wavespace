@@ -16,6 +16,7 @@ class Configuration:
     seq_len: int = 75
     latent_dim: int = 128
     sample_property: str = "latents"
+    transpose_samples: bool = False
     transpose_labels: bool = False
     label_max_value: float = 1.0
 

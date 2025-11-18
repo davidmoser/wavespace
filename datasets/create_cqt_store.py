@@ -30,7 +30,11 @@ def create_cqt_store(
         num_workers: int = 1,
         sample_callback: Optional[Callable[[int, Tensor], None]] = None,
 ) -> None:
-    """Persist a dataset of CQTs and salience tensors as a WebDataset."""
+    """
+    Persist a dataset of CQTs and salience tensors as a WebDataset.
+    Samples: Power CQT, T x F
+    Labels: Activation salience or power salience, T x F
+    """
 
     total_samples = len(dataset)
     dataset_frame_rate = dataset.get_frame_rate()
@@ -59,12 +63,14 @@ def create_cqt_store(
         combined_metadata["external"] = dict(metadata)
 
     workers = 0 if num_workers is None else num_workers
+    # cqt transforms are the bottleneck => high prefetch_factor to keep workers busy
     loader = DataLoader(
         dataset,
         num_workers=workers,
         pin_memory=False,
         shuffle=False,
         drop_last=False,
+        prefetch_factor=10000
     )
 
     writer = SampleStoreWriter(

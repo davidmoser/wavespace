@@ -18,7 +18,9 @@ _MIDI_EXTENSIONS: Tuple[str, ...] = (".mid", ".midi")
 
 
 class CqtMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
-    """Dataset that yields CQT tensors and MIDI salience tensor pairs."""
+    """
+    Dataset that yields CQT T x F tensors and MIDI T x F salience tensor pairs.
+    """
 
     def __init__(
             self,

@@ -43,7 +43,7 @@ def create_latent_store(
         normalize: Optional[bool] = None,
         latent_callback: Optional[Callable[[int, Tensor], None]] = None,
 ) -> None:
-    """Encode a dataset to EnCodec pre-quant latents and persist them as a WebDataset.
+    """Encode a dataset to EnCodec pre-quant latents L x T and salience labels  and persist them as a WebDataset.
 
     Args:
         dataset: ``torch.utils.data.Dataset`` providing items whose first element

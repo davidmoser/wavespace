@@ -30,7 +30,7 @@ def _validate_freq_range(freq_range: Sequence[float]) -> Tuple[float, float]:
 
 
 class PolyphonicAsyncDataset(Dataset[Tuple[Tensor, Tensor]]):
-    """Dataset that renders asynchronous polyphonic mixtures on the fly."""
+    """Dataset that renders asynchronous polyphonic mixtures on the fly. Samples 1 x T, Labels F x T"""
 
     def __init__(
             self,

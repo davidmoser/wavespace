@@ -19,7 +19,7 @@ _MIDI_EXTENSIONS: Tuple[str, ...] = (".mid", ".midi")
 
 
 class WavMidiSalienceDataset(IterableDataset[Tuple[Tensor, Tensor]]):
-    """Dataset that yields audio and MIDI salience tensor pairs."""
+    """Dataset that yields audio 1 x T and MIDI salience tensor T x F pairs."""
 
     def __init__(
             self,

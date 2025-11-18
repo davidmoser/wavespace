@@ -34,10 +34,10 @@ def convert_maestro(
 
 if __name__ == "__main__":
     convert_maestro(
-        output_dir=f"../../resources/maestro_cqts/maestro_activation_50sam_20sec",
-        n_samples=50,
+        output_dir=f"../../resources/maestro_cqts/maestro_activation_5000sam_20sec",
+        n_samples=5000,
         samples_per_shard=500,
         duration=20,
         label_type="activation",
-        num_workers=0,
+        num_workers=8,
     )

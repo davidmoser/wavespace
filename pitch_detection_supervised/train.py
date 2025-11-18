@@ -70,7 +70,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
 
-            samples, targets = batch  # samples: B,L,T, targets: B,F,T
+            samples, targets = batch  # samples: B x L x T targets: B x F x T
             samples = samples.to(device)
             targets = targets.to(device)
             targets = torch.clip(targets / config.label_max_value, 0, 1)
@@ -182,20 +182,25 @@ def _load_datasets(config: Configuration) -> Tuple[Dataset, Optional[Dataset]]:
     if config.split_train_set is not None and config.val_dataset_path:
         raise ValueError("Cannot use a validation dataset path and split the training dataset simultaneously.")
 
-    train_dataset = _load_dataset(config.train_dataset_path, config.transpose_labels, config.sample_property)
+    train_dataset = _load_dataset(config.train_dataset_path, config)
     if config.split_train_set:
         val_length = math.ceil(len(train_dataset) * config.split_train_set)
         train_length = len(train_dataset) - val_length
         return random_split(train_dataset, [train_length, val_length])
     elif config.val_dataset_path:
-        val_dataset = _load_dataset(config.val_dataset_path, config.transpose_labels, config.sample_property)
+        val_dataset = _load_dataset(config.val_dataset_path, config)
         return train_dataset, val_dataset
     else:
         return train_dataset, None
 
 
-def _load_dataset(path: str, transpose_labels: bool, sample_property: str) -> Dataset:
-    return TensorStore(path, transpose_labels=transpose_labels, sample_property=sample_property)
+def _load_dataset(path: str, config: Configuration) -> Dataset:
+    return TensorStore(
+        path,
+        transpose_samples=config.transpose_samples,
+        transpose_labels=config.transpose_labels,
+        sample_property=config.sample_property
+    )
 
 
 def _create_loader(
