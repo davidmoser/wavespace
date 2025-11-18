@@ -123,6 +123,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
                     current_step,
                     train_log_samples,
                     val_log_samples,
+                    incl_sample=True,
                 )
                 model.train()
                 if val_loss < best_val_loss:

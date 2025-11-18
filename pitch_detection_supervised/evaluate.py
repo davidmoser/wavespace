@@ -18,8 +18,8 @@ LOG_SAMPLE_COUNT = 5
 @dataclass
 class _LoggingSample:
     index: int
-    latents: Tensor
-    target: Tensor
+    sample: Tensor
+    label: Tensor
 
 
 @torch.no_grad()
@@ -31,19 +31,19 @@ def evaluate(model: Module, data_loader: DataLoader, label_max_value: float, bce
 
     count = 0
     for batch in data_loader:
-        latents, targets = batch
+        samples, labels = batch
 
-        latents = latents.to(device)
-        targets = targets.to(device)
-        targets = torch.clip(targets / label_max_value, 0., 1.)
+        samples = samples.to(device)
+        labels = labels.to(device)
+        labels = torch.clip(labels / label_max_value, 0., 1.)
 
-        logits = model(latents)
-        loss = criterion(logits, targets)
+        logits = model(samples)
+        loss = criterion(logits, labels)
 
         total_loss += loss.sum()
         count += 1
 
-        _ = _compute_batch_metrics(logits, targets)
+        _ = _compute_batch_metrics(logits, labels)
 
     metrics = {
         "loss": (total_loss / count).item(),
@@ -76,13 +76,13 @@ def _prepare_logging_samples(
     generator.manual_seed(seed)
     indices = torch.randperm(dataset_length, generator=generator)[:n_select].tolist()
 
-    samples: List[_LoggingSample] = []
+    logging_samples: List[_LoggingSample] = []
     for idx in indices:
-        latents, label = dataset[idx]
-        latents_tensor = latents.detach().to(dtype=torch.float32).cpu()
-        target_tensor = torch.clip(label.detach().to(dtype=torch.float32).cpu() / label_max_value, 0., 1.)
-        samples.append(_LoggingSample(index=idx, latents=latents_tensor, target=target_tensor))
-    return samples
+        samples, label = dataset[idx]
+        samples_tensor = samples.detach().to(dtype=torch.float32).cpu()
+        labels_tensor = torch.clip(label.detach().to(dtype=torch.float32).cpu() / label_max_value, 0., 1.)
+        logging_samples.append(_LoggingSample(index=idx, sample=samples_tensor, label=labels_tensor))
+    return logging_samples
 
 
 def _log_evaluation_samples(
@@ -91,19 +91,21 @@ def _log_evaluation_samples(
         step: int,
         train_samples: List[_LoggingSample],
         val_samples: List[_LoggingSample],
+        incl_sample: bool = False,
 ) -> None:
-    _log_sample_predictions(model, train_samples, device, step, "train")
-    _log_sample_predictions(model, val_samples, device, step, "val")
+    _log_sample_predictions(model, train_samples, device, step, "train", incl_sample)
+    _log_sample_predictions(model, val_samples, device, step, "val", incl_sample)
 
 
 def _log_sample_predictions(
         model: Module,
-        samples: List[_LoggingSample],
+        logging_samples: List[_LoggingSample],
         device: torch.device,
         step: int,
         split: str,
+        incl_sample: bool = False,
 ) -> None:
-    if not samples or not wandb.run:
+    if not logging_samples or not wandb.run:
         return
 
     previous_mode = model.training
@@ -111,15 +113,16 @@ def _log_sample_predictions(
 
     images: List[wandb.Image] = []
     with torch.no_grad():
-        for sample_idx, sample in enumerate(samples, start=1):
-            inputs = sample.latents.unsqueeze(0).to(device)
+        for sample_idx, logging_sample in enumerate(logging_samples, start=1):
+            inputs = logging_sample.sample.unsqueeze(0).to(device)
             logits = model(inputs)
             prediction = torch.sigmoid(logits).squeeze(0).cpu().numpy()
-            target = sample.target.cpu().numpy()
-            panel = _create_piano_roll_panel(target, prediction)
+            label = logging_sample.label.cpu().numpy()
+            sample = logging_sample.sample.cpu().numpy()
+            panel = _create_piano_roll_panel(label, prediction, sample, incl_sample)
             caption = (
-                f"{split} sample {sample_idx} (idx={sample.index})\n"
-                "Top: target, Bottom: prediction"
+                f"{split} sample {sample_idx} (idx={logging_sample.index})\n"
+                "Top: label, Bottom: prediction"
             )
             images.append(wandb.Image(panel, caption=caption))
 
@@ -130,18 +133,17 @@ def _log_sample_predictions(
         model.train()
 
 
-def _create_piano_roll_panel(target: np.ndarray, prediction: np.ndarray) -> np.ndarray:
-    target_img = np.clip(target, 0.0, 1.0).astype(np.float32)
-    prediction_img = np.clip(prediction, 0.0, 1.0).astype(np.float32)
-    if target_img.shape != prediction_img.shape:
-        min_rows = min(target_img.shape[0], prediction_img.shape[0])
-        min_cols = min(target_img.shape[1], prediction_img.shape[1])
-        target_img = target_img[:min_rows, :min_cols]
-        prediction_img = prediction_img[:min_rows, :min_cols]
+def _create_piano_roll_panel(label: np.ndarray, prediction: np.ndarray, sample: np.ndarray,
+                             incl_sample: bool) -> np.ndarray:
+    label_img = np.flip(np.clip(label, 0.0, 1.0).astype(np.float32), axis=0)
+    prediction_img = np.flip(np.clip(prediction, 0.0, 1.0).astype(np.float32), axis=0)
+    sample_img = np.flip(np.clip(sample, 0.0, 1.0).astype(np.float32), axis=0)
 
-    separator = np.ones((1, target_img.shape[1]), dtype=np.float32)
-    panel = np.concatenate((target_img, separator, prediction_img), axis=0)
-    panel_norm = panel / target.max()
+    separator = np.ones((1, label_img.shape[1]), dtype=np.float32)
+    panel = np.concatenate((label_img, separator, prediction_img), axis=0)
+    if incl_sample:
+        panel = np.concatenate((panel, separator, sample_img), axis=0)
+    panel_norm = panel / label.max()
     rgba = cm.get_cmap('viridis')(panel_norm)  # (H, W, 4) floats in [0,1]
     rgb = (rgba[..., :3] * 255).astype('uint8')  # (H, W, 3) uint8
     return rgb
