@@ -11,7 +11,7 @@ from torch.nn import Module, BCEWithLogitsLoss
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
-from datasets.latent_salience_store import LatentSalienceStore
+from datasets.tensor_store import TensorStore
 from .configuration import Configuration
 from .dilated_tcn import DilatedTCN
 from .evaluate import (
@@ -70,11 +70,11 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
 
-            latents, targets = batch  # latents: B,L,T, targets: B,F,T
-            latents = latents.to(device)
+            samples, targets = batch  # samples: B,L,T, targets: B,F,T
+            samples = samples.to(device)
             targets = targets.to(device)
             targets = torch.clip(targets / config.label_max_value, 0, 1)
-            logits = model(latents)
+            logits = model(samples)
             loss = criterion(logits, targets)
 
             loss.backward()
@@ -182,20 +182,20 @@ def _load_datasets(config: Configuration) -> Tuple[Dataset, Optional[Dataset]]:
     if config.split_train_set is not None and config.val_dataset_path:
         raise ValueError("Cannot use a validation dataset path and split the training dataset simultaneously.")
 
-    train_dataset = _load_dataset(config.train_dataset_path, config.transpose_labels)
+    train_dataset = _load_dataset(config.train_dataset_path, config.transpose_labels, config.sample_property)
     if config.split_train_set:
         val_length = math.ceil(len(train_dataset) * config.split_train_set)
         train_length = len(train_dataset) - val_length
         return random_split(train_dataset, [train_length, val_length])
     elif config.val_dataset_path:
-        val_dataset = _load_dataset(config.val_dataset_path, config.transpose_labels)
+        val_dataset = _load_dataset(config.val_dataset_path, config.transpose_labels, config.sample_property)
         return train_dataset, val_dataset
     else:
         return train_dataset, None
 
 
-def _load_dataset(path: str, transpose_labels: bool) -> Dataset:
-    return LatentSalienceStore(path, transpose_labels=transpose_labels)
+def _load_dataset(path: str, transpose_labels: bool, sample_property: str) -> Dataset:
+    return TensorStore(path, transpose_labels=transpose_labels, sample_property=sample_property)
 
 
 def _create_loader(

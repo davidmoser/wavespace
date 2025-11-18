@@ -10,8 +10,9 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 
-class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
-    """Dataset backed by artifacts produced with :func:`create_latent_store`.
+class TensorStore(Dataset[Tuple[Tensor, Tensor]]):
+    """Dataset backed by artifacts produced with :func:`create_latent_store` or `create_cqt_store`.
+    Samples are tensors and labels are tensors.
 
     The dataset eagerly loads the manifest labels and index information into
     memory. Samples are retrieved by seeking into the compressed shard using the
@@ -23,10 +24,12 @@ class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
             self,
             store_path: Union[str, Path],
             *,
+            sample_property: str = "latents",
             transpose_labels: bool = False,
             map_location: Optional[Union[str, torch.device]] = "cpu",
     ) -> None:
         self._root = Path(store_path)
+        self._sample_property = sample_property
         self._transpose_labels = transpose_labels
         if not self._root.is_dir():
             raise FileNotFoundError(f"Dataset store not found: {self._root}")
@@ -50,11 +53,11 @@ class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
             raise IndexError("index out of range")
 
         record = self._records[index]
-        latents, _, label = self._load_payload(record)
+        sample, label = self._load_payload(record)
         if self._transpose_labels:
             label = label.T
 
-        return latents, label
+        return sample, label
 
     class _IndexRecord:
         __slots__ = ("key", "shard", "member", "offset", "size")
@@ -73,8 +76,8 @@ class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
             self.offset = offset
             self.size = size
 
-    def _load_index(self, index_path: Path) -> List["LatentSalienceStore._IndexRecord"]:
-        records: List[LatentSalienceStore._IndexRecord] = []
+    def _load_index(self, index_path: Path) -> List["TensorStore._IndexRecord"]:
+        records: List[TensorStore._IndexRecord] = []
         with index_path.open("r", encoding="utf-8") as file:
             for line_number, line in enumerate(file):
                 line = line.strip()
@@ -99,7 +102,7 @@ class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
 
         return records
 
-    def _load_payload(self, record: "LatentSalienceStore._IndexRecord") -> Tuple[Tensor, float, Tensor]:
+    def _load_payload(self, record: "TensorStore._IndexRecord") -> Tuple[Tensor, Tensor]:
         shard_path = self._root / record.shard
         if not shard_path.is_file():
             raise FileNotFoundError(f"Shard not found: {shard_path}")
@@ -144,17 +147,16 @@ class LatentSalienceStore(Dataset[Tuple[Tensor, Tensor]]):
                 f"Expected a mapping payload for key '{record.key}', got {type(payload)!r}."
             )
 
-        latents = payload.get("latents")
-        scale = payload.get("scale")
+        sample = payload.get(self._sample_property)
         label = payload.get("label")
 
-        if not isinstance(latents, Tensor):
+        if not isinstance(sample, Tensor):
             raise TypeError(
-                f"Expected 'latents' tensor for key '{record.key}', got {type(latents)!r}."
+                f"Expected 'sample' tensor for key '{record.key}', got {type(sample)!r}."
             )
         if not isinstance(label, Tensor):
             raise TypeError(
                 f"Expected 'label' tensor for key '{record.key}', got {type(label)!r}."
             )
 
-        return latents, scale, label
+        return sample, label

@@ -5,7 +5,7 @@ from pathlib import Path
 import torch
 
 from datasets.create_latent_store import create_latent_store
-from datasets.latent_salience_store import LatentSalienceStore
+from datasets.tensor_store import TensorStore
 from datasets.poly_dataset import PolyphonicAsyncDataset
 
 
@@ -34,7 +34,7 @@ def test_polyphonic_dataset_store_roundtrip(tmp_path: Path) -> None:
         latent_callback=capture_latents,
     )
 
-    store = LatentSalienceStore(output_path)
+    store = TensorStore(output_path)
 
     assert len(store) == len(dataset)
 

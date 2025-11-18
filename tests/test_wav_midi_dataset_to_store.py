@@ -5,7 +5,7 @@ from pathlib import Path
 import torch
 
 from datasets.create_latent_store import create_latent_store
-from datasets.latent_salience_store import LatentSalienceStore
+from datasets.tensor_store import TensorStore
 from datasets.wav_midi_salience_dataset import WavMidiSalienceDataset
 
 
@@ -34,7 +34,7 @@ def test_wav_midi_dataset_to_store(tmp_path: Path) -> None:
         latent_callback=capture_latents,
     )
 
-    store = LatentSalienceStore(output_path)
+    store = TensorStore(output_path)
 
     assert len(store) == len(dataset)
 

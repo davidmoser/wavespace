@@ -1,8 +1,8 @@
 import torch
 
-from datasets.latent_salience_store import LatentSalienceStore
+from datasets.tensor_store import TensorStore
 
-store = LatentSalienceStore(
+store = TensorStore(
     store_path="../../resources/encodec_latents/maestro_power_10000sam_20sec",
     transpose_labels=True,
 )

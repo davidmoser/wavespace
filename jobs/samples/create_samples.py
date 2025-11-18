@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import soundfile as sf
 import torch
 
-from datasets.latent_salience_store import LatentSalienceStore
+from datasets.tensor_store import TensorStore
 from datasets.poly_utils import (
     RNG,
     Spec,
@@ -173,7 +173,7 @@ def export_store_samples(
     output_dir = Path(destination)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset = LatentSalienceStore(root, map_location="cpu")
+    dataset = TensorStore(root, map_location="cpu")
     dataset_length = len(dataset)
     if sample_count > dataset_length:
         raise ValueError(
