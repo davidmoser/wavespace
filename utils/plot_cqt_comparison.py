@@ -167,3 +167,65 @@ def plot_cqt_comparison(
         colormap=colormap,
     )
     save_image(image_array, output_image)
+
+
+def plot_cqt(
+        audio_file: str,
+        output_image: str,
+        duration_seconds: Optional[float],
+        scale_values: float = 1,
+        cqt_bins: int = 84,
+        cqt_bins_per_octave: int = 12,
+        cqt_frames_per_s: int = 70,
+        cqt_fmin: float = 32.7,
+        cqt_vertical_pixels: int = 128,
+        pixels_per_second: int = 50,
+        colormap: str = "viridis",
+):
+    waveform, sample_rate, eff_duration = load_audio_segment(audio_file, duration=duration_seconds)
+    hop_length = sample_rate // cqt_frames_per_s
+    cqt_representation = compute_cqt_representation(
+        waveform,
+        sample_rate,
+        n_bins=cqt_bins,
+        bins_per_octave=cqt_bins_per_octave,
+        hop_length=hop_length,
+        fmin=cqt_fmin,
+    )
+    # Flip frequency so low frequencies are at bottom
+    image_array = create_image(
+        cqt_representation.flip(0),
+        scale_values=scale_values,
+        duration_seconds=eff_duration,
+        pixels_per_second=pixels_per_second,
+        vertical_pixels=cqt_bins,
+        cqt_vertical_pixels=cqt_vertical_pixels,
+        colormap=colormap,
+    )
+    save_image(image_array, output_image)
+
+
+def create_image(
+        cqt_representation: Tensor,
+        *,
+        duration_seconds: float,
+        scale_values: float,
+        pixels_per_second: int = 50,
+        vertical_pixels: int = 128,
+        cqt_vertical_pixels: int = 128,
+        colormap: str = "viridis",
+) -> np.ndarray:
+    """Convert predictions and CQT data into a stacked visualization."""
+    width = max(1, int(math.ceil(duration_seconds * pixels_per_second)))
+
+    cqt_resized = F.interpolate(
+        cqt_representation.unsqueeze(0).unsqueeze(0),
+        size=(cqt_vertical_pixels, width),
+        mode="bilinear",
+        align_corners=False,
+    ).squeeze(0).squeeze(0)
+    cqt_scaled = cqt_resized.clamp(0.0, 1.0)
+
+    rgba = matplotlib.colormaps.get_cmap(colormap)(cqt_scaled.cpu().numpy())
+    rgb = (rgba[..., :3] * 255).astype(np.uint8)
+    return rgb
