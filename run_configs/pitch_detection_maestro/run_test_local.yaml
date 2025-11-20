@@ -1,10 +1,14 @@
 batch_size: 8
 device: cpu
 eval_interval: 20
-lr: 0.0001
+lr: 0.0004
 model_config:
   dropout: 0.
   seq_len: 200
+  nhead: 4
+  d_model: 128
+  ffn_dim: 512
+  num_layers: 10
 model_name: TokenTransformer
 num_workers: 4
 sample_duration: 20
@@ -15,7 +19,7 @@ transpose_labels: true
 bce_pos_weight: 1.0
 seq_len: 200
 split_train_set: 0.1
-steps: 20
+steps: 5000
 train_dataset_path: "{volume}/maestro_cqts/maestro_activation_5000sam_20sec/"
 warmup_fraction: 0.03
 weight_decay: 0.01

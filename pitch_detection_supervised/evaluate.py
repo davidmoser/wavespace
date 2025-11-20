@@ -9,7 +9,7 @@ from torch import Tensor
 from torch.nn import Module, BCEWithLogitsLoss
 from torch.utils.data import DataLoader, Dataset
 
-from .utils import log_to_wandb
+from .utils import log_to_wandb, normalize_samples
 
 LOG_SAMPLE_SEED = 2024
 LOG_SAMPLE_COUNT = 5
@@ -17,7 +17,6 @@ LOG_SAMPLE_COUNT = 5
 
 @dataclass
 class _LoggingSample:
-    index: int
     sample: Tensor
     label: Tensor
 
@@ -33,9 +32,8 @@ def evaluate(model: Module, data_loader: DataLoader, label_max_value: float, bce
     for batch in data_loader:
         samples, labels = batch
 
-        samples = samples.to(device)
+        samples = normalize_samples(samples.to(device))
         labels = labels.to(device)
-        labels = torch.clip(labels / label_max_value, 0., 1.)
 
         logits = model(samples)
         loss = criterion(logits, labels)
@@ -64,24 +62,14 @@ def _prepare_logging_samples(
         seed: int = LOG_SAMPLE_SEED,
         count: int = LOG_SAMPLE_COUNT,
 ) -> List[_LoggingSample]:
-    if dataset is None:
-        return []
-
-    dataset_length = len(dataset)
-    if dataset_length == 0 or count <= 0:
-        return []
-
-    n_select = min(dataset_length, count)
-    generator = torch.Generator()
-    generator.manual_seed(seed)
-    indices = torch.randperm(dataset_length, generator=generator)[:n_select].tolist()
+    loader = DataLoader(dataset, batch_size=count, shuffle=True, generator=torch.Generator().manual_seed(seed))
+    samples, labels = next(iter(loader))
+    samples = normalize_samples(samples.detach().to(dtype=torch.float32).cpu())
+    labels = torch.clip(labels.detach().to(dtype=torch.float32).cpu() / label_max_value, 0., 1.)
 
     logging_samples: List[_LoggingSample] = []
-    for idx in indices:
-        samples, label = dataset[idx]
-        samples_tensor = samples.detach().to(dtype=torch.float32).cpu()
-        labels_tensor = torch.clip(label.detach().to(dtype=torch.float32).cpu() / label_max_value, 0., 1.)
-        logging_samples.append(_LoggingSample(index=idx, sample=samples_tensor, label=labels_tensor))
+    for i in range(count):
+        logging_samples.append(_LoggingSample(sample=samples[i], label=labels[i]))
     return logging_samples
 
 
@@ -121,7 +109,7 @@ def _log_sample_predictions(
             sample = logging_sample.sample.cpu().numpy()
             panel = _create_piano_roll_panel(label, prediction, sample, incl_sample)
             caption = (
-                f"{split} sample {sample_idx} (idx={logging_sample.index})\n"
+                f"{split} sample {sample_idx}\n"
                 "Top: label, Bottom: prediction"
             )
             images.append(wandb.Image(panel, caption=caption))

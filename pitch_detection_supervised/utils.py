@@ -140,3 +140,11 @@ def events_to_active_label(
     # y.clamp_(0.0, 1.0)
 
     return y
+
+
+def normalize_samples(samples: torch.Tensor) -> torch.Tensor:
+    # samples = torch.log(samples)
+    mins = samples.min(dim=1, keepdim=True).values
+    maxs = samples.max(dim=1, keepdim=True).values
+    samples = (samples - mins) / (maxs - mins + 1e-4)
+    return samples

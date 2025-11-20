@@ -23,7 +23,7 @@ from .evaluate import (
 from .local_context_mlp import LocalContextMLP
 from .token_transformer import TokenTransformer
 from .utils import create_warmup_cosine_lr, log_to_wandb, update_wandb_summary, resolve_device, \
-    login_to_wandb
+    login_to_wandb, normalize_samples
 
 PROJECT_NAME = "pitch-detection-supervised"
 
@@ -71,7 +71,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             optimizer.zero_grad(set_to_none=True)
 
             samples, targets = batch  # samples: B x L x T targets: B x F x T
-            samples = samples.to(device)
+            samples = normalize_samples(samples.to(device))
             targets = targets.to(device)
             targets = torch.clip(targets / config.label_max_value, 0, 1)
             logits = model(samples)
