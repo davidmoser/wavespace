@@ -5,6 +5,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import mido
 import torch
+import torchaudio.functional as taf
 
 
 @dataclass
@@ -186,6 +187,11 @@ def prepare_cqts(
     import numpy as np
     import soundfile as sf
 
+    # librosa is much faster with hop_length = integer * 2**k
+    # with framerates like 10, 20 that's much better for 48 kHz as opposed to 44.1 kHz (10 times faster)
+    optimal_sr = 48_000
+    hop_length = optimal_sr // frame_rate
+
     with sf.SoundFile(audio_path) as audio_file:
         sr = int(audio_file.samplerate)
         total_samples = int(audio_file.frames)
@@ -200,9 +206,6 @@ def prepare_cqts(
         return []
 
     total_chunks = usable_samples // chunk_samples
-    hop_length = sr // frame_rate
-    if hop_length <= 0:
-        raise ValueError("frame_rate must be less than or equal to the audio sample rate")
 
     cqt_chunks: List[torch.Tensor] = []
     with sf.SoundFile(audio_path) as audio_file:
@@ -212,9 +215,10 @@ def prepare_cqts(
             if samples.shape[0] != chunk_samples:
                 break
             chunk = samples.mean(axis=1)
+            chunk_resampled = taf.resample(torch.from_numpy(chunk), orig_freq=sr, new_freq=optimal_sr).cpu().numpy()
             cqt = librosa.cqt(
-                np.ascontiguousarray(chunk),
-                sr=sr,
+                np.ascontiguousarray(chunk_resampled),
+                sr=optimal_sr,
                 hop_length=hop_length,
                 fmin=librosa.midi_to_hz(0),
                 n_bins=128 * 2,

@@ -39,5 +39,5 @@ if __name__ == "__main__":
         samples_per_shard=1000,
         duration=10,
         label_type="activation",
-        num_workers=8,
+        num_workers=4,
     )

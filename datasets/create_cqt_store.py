@@ -64,7 +64,7 @@ def create_cqt_store(
 
     workers = 0 if num_workers is None else num_workers
     # cqt transforms are the bottleneck => high prefetch_factor to keep workers busy
-    prefetch_factor = None if num_workers==0 else 10000
+    prefetch_factor = None if num_workers == 0 else 1000
     loader = DataLoader(
         dataset,
         num_workers=workers,
@@ -95,7 +95,8 @@ def create_cqt_store(
             if batch_len == 0:
                 continue
 
-            print(f"Sample index {next_dataset_index}/{total_samples}")
+            if next_dataset_index % 100 == 0:
+                print(f"Sample index {next_dataset_index}/{total_samples}")
 
             writer.write_batch(
                 start_index=next_dataset_index,
