@@ -1,20 +1,23 @@
 import os
 import random
+
 import matplotlib.pyplot as plt
 import torch
 
-# Path to the tensor file containing the spectrogram dataset
-# Adjust this path to your environment
-data_file = "../resources/logspectrograms.pt"
 
-# Number of random samples to plot
-n = 100
+def plot_spectrogram_samples(
+        data_file: str,
+        output_folder: str,
+        n: int = 100,
+) -> None:
+    """Plot spectrograms from stored dataset to an output folder.
 
-# Directory in which the output images will be saved
-output_folder = "../resources/logspectrograms"
+    Args:
+        data_file: Path to the tensor file containing the spectrogram dataset. Adjust this path to your environment.
+        n: Number of random samples to plot.
+        output_folder: Directory in which the output images will be saved.
+    """
 
-
-def main() -> None:
     if os.path.exists(output_folder):
         raise FileExistsError(f"Output folder '{output_folder}' already exists")
     os.makedirs(output_folder)
@@ -41,4 +44,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    plot_spectrogram_samples(
+        data_file="../resources/logspectrograms.pt",
+        output_folder="../resources/logspectrograms",
+        n=100,
+    )
