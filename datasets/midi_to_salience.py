@@ -217,8 +217,8 @@ def prepare_cqts(
                 sr=sr,
                 hop_length=hop_length,
                 fmin=librosa.midi_to_hz(0),
-                n_bins=128,
-                bins_per_octave=12,
+                n_bins=128 * 2,
+                bins_per_octave=12 * 2,
             ).T
             # remove at most one time frame
             if cqt.shape[0] == frames_per_chunk + 1:

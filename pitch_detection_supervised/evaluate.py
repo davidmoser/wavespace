@@ -4,8 +4,9 @@ from typing import Dict, Optional, Tuple, List
 import matplotlib.cm as cm
 import numpy as np
 import torch
+import torch.nn.functional as F
 import wandb
-from torch import Tensor
+from torch import Tensor, Size
 from torch.nn import Module, BCEWithLogitsLoss
 from torch.utils.data import DataLoader, Dataset
 
@@ -104,13 +105,13 @@ def _log_sample_predictions(
         for sample_idx, logging_sample in enumerate(logging_samples, start=1):
             inputs = logging_sample.sample.unsqueeze(0).to(device)
             logits = model(inputs)
-            prediction = torch.sigmoid(logits).squeeze(0).cpu().numpy()
-            label = logging_sample.label.cpu().numpy()
-            sample = logging_sample.sample.cpu().numpy()
+            prediction = torch.sigmoid(logits).squeeze(0).cpu()
+            label = logging_sample.label.cpu()
+            sample = logging_sample.sample.cpu()
             panel = _create_piano_roll_panel(label, prediction, sample, incl_sample)
             caption = (
                 f"{split} sample {sample_idx}\n"
-                "Top: label, Bottom: prediction"
+                "Top: label, Middle: prediction, Bottom: sample"
             )
             images.append(wandb.Image(panel, caption=caption))
 
@@ -121,11 +122,12 @@ def _log_sample_predictions(
         model.train()
 
 
-def _create_piano_roll_panel(label: np.ndarray, prediction: np.ndarray, sample: np.ndarray,
+def _create_piano_roll_panel(label: Tensor, prediction: Tensor, sample: Tensor,
                              incl_sample: bool) -> np.ndarray:
-    label_img = np.flip(np.clip(label, 0.0, 1.0).astype(np.float32), axis=0)
-    prediction_img = np.flip(np.clip(prediction, 0.0, 1.0).astype(np.float32), axis=0)
-    sample_img = np.flip(np.clip(sample, 0.0, 1.0).astype(np.float32), axis=0)
+    label_img = np.flip(np.clip(label.numpy(), 0.0, 1.0).astype(np.float32), axis=0)
+    prediction_img = np.flip(np.clip(prediction.numpy(), 0.0, 1.0).astype(np.float32), axis=0)
+    sample = _scale(sample, label.shape)
+    sample_img = np.flip(np.clip(sample.numpy(), 0.0, 1.0).astype(np.float32), axis=0)
 
     separator = np.ones((1, label_img.shape[1]), dtype=np.float32)
     panel = np.concatenate((label_img, separator, prediction_img), axis=0)
@@ -135,3 +137,8 @@ def _create_piano_roll_panel(label: np.ndarray, prediction: np.ndarray, sample: 
     rgba = cm.get_cmap('viridis')(panel_norm)  # (H, W, 4) floats in [0,1]
     rgb = (rgba[..., :3] * 255).astype('uint8')  # (H, W, 3) uint8
     return rgb
+
+
+def _scale(tensor: Tensor, shape: Size) -> Tensor:
+    return (F.interpolate(tensor.unsqueeze(0).unsqueeze(0), shape, mode="bilinear", align_corners=False)
+            .squeeze(0).squeeze(0))

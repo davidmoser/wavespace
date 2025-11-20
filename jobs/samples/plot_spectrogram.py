@@ -9,7 +9,7 @@ plot_cqt(
     # scale_values=scale_values,
     cqt_bins=256,
     cqt_bins_per_octave=24,
-    cqt_frames_per_s=50,
+    cqt_frames_per_s=20,
     cqt_fmin=float(librosa.midi_to_hz(0)),
     cqt_vertical_pixels=256,
     pixels_per_second=50,

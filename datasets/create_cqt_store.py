@@ -64,13 +64,14 @@ def create_cqt_store(
 
     workers = 0 if num_workers is None else num_workers
     # cqt transforms are the bottleneck => high prefetch_factor to keep workers busy
+    prefetch_factor = None if num_workers==0 else 10000
     loader = DataLoader(
         dataset,
         num_workers=workers,
         pin_memory=False,
         shuffle=False,
         drop_last=False,
-        prefetch_factor=10000
+        prefetch_factor=prefetch_factor
     )
 
     writer = SampleStoreWriter(

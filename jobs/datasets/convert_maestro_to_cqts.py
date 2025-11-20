@@ -18,7 +18,7 @@ def convert_maestro(
         n_samples=n_samples,
         duration=duration,
         label_type=label_type,
-        frame_rate=10,
+        frame_rate=20,
     )
 
     output_path = Path(output_dir)
@@ -34,10 +34,10 @@ def convert_maestro(
 
 if __name__ == "__main__":
     convert_maestro(
-        output_dir=f"../../resources/maestro_cqts/maestro_activation_5000sam_20sec",
-        n_samples=5000,
-        samples_per_shard=500,
-        duration=20,
+        output_dir=f"../../resources/maestro_cqts/maestro_activation_50000sam_10sec",
+        n_samples=50000,
+        samples_per_shard=1000,
+        duration=10,
         label_type="activation",
         num_workers=8,
     )
