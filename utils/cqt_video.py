@@ -1,5 +1,7 @@
 import math
+import subprocess
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Iterable, Literal, Optional
 
 import imageio.v3 as iio
@@ -8,6 +10,7 @@ import matplotlib
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torchaudio
 from torch import Tensor
 
 from utils.plot_cqt_comparison import load_audio_segment
@@ -161,4 +164,32 @@ def create_cqt_video(
 
     output_path = Path(output_video)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    iio.imwrite(output_path, frames, fps=cqt_frames_per_s)
+
+    with TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        video_without_audio = temp_dir_path / "video.mp4"
+        audio_path = temp_dir_path / "audio.wav"
+
+        iio.imwrite(video_without_audio, frames, fps=cqt_frames_per_s)
+        torchaudio.save(audio_path, waveform, sample_rate)
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(video_without_audio),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-shortest",
+            str(output_path),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Failed to mux audio into video: "
+                f"{result.stderr.strip() or 'unknown ffmpeg error.'}"
+            )
