@@ -23,7 +23,7 @@ from .evaluate import (
 from .local_context_mlp import LocalContextMLP
 from .token_transformer import TokenTransformer
 from .utils import create_warmup_cosine_lr, log_to_wandb, update_wandb_summary, resolve_device, \
-    login_to_wandb, normalize_samples
+    login_to_wandb, normalize_samples, prepare_labels
 
 PROJECT_NAME = "pitch-detection-supervised"
 
@@ -70,12 +70,12 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
         for batch_idx, batch in enumerate(train_loader, start=1):
             optimizer.zero_grad(set_to_none=True)
 
-            samples, targets = batch  # samples: B x L x T targets: B x F x T
+            samples, labels = batch  # samples: B x L x T targets: B x F x T
             samples = normalize_samples(samples.to(device))
-            targets = targets.to(device)
-            targets = torch.clip(targets / config.label_max_value, 0, 1)
+            labels = labels.to(device)
+            labels = prepare_labels(labels, samples, config.label_max_value)
             logits = model(samples)
-            loss = criterion(logits, targets)
+            loss = criterion(logits, labels)
 
             loss.backward()
             if config.max_grad_norm is not None and config.max_grad_norm > 0:
@@ -87,7 +87,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
             scheduler.step()
 
             with torch.no_grad():
-                _ = _compute_batch_metrics(logits, targets)  # TODO: metrics to track
+                _ = _compute_batch_metrics(logits, labels)  # TODO: metrics to track
 
             current_lr = optimizer.param_groups[0]["lr"]
             log_to_wandb(

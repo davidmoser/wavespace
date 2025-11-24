@@ -2,7 +2,7 @@ from utils import run_wandb_run
 
 
 run_wandb_run(
-    config_path="../../run_configs/pitch_detection_maestro/run_cqt_1.yaml",
+    config_path="../../run_configs/pitch_detection_maestro/run_cqt_power_1.yaml",
     project="pitch-detection-supervised",
     run_namespace="david-moser-ggg/pitch-detection-supervised",
     endpoint="9hr07oet4wfndt",

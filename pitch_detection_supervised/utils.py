@@ -3,7 +3,9 @@ import os
 from typing import Optional, Dict, Any
 
 import torch
+import torch.nn.functional as F
 import wandb
+from torch import Size
 from torch import Tensor
 
 
@@ -71,6 +73,7 @@ def update_wandb_summary(summary: Dict[str, Any]) -> None:
         if value is None:
             continue
         wandb.run.summary[key] = value
+
 
 def events_to_active_label(
         events,  # list of (frequency_hz, onset_s, offset_s)
@@ -142,9 +145,24 @@ def events_to_active_label(
     return y
 
 
+def scale_2d(tensor: Tensor, shape: Size) -> Tensor:
+    return scale_3d(tensor.unsqueeze(0), shape).squeeze(0)
+
+
+def scale_3d(tensor: Tensor, shape: Size) -> Tensor:
+    return (F.interpolate(tensor.unsqueeze(0), shape, mode="bilinear", antialias=True, align_corners=False)
+            .squeeze(0))
+
+
 def normalize_samples(samples: torch.Tensor) -> torch.Tensor:
     # samples = torch.log(samples)
     mins = samples.min(dim=1, keepdim=True).values
     maxs = samples.max(dim=1, keepdim=True).values
     samples = (samples - mins) / (maxs - mins + 1e-4)
     return samples
+
+
+def prepare_labels(labels: torch.Tensor, samples: torch.Tensor, label_max_value: float) -> torch.Tensor:
+    scaled_samples = scale_3d(samples, labels.shape[1:3])
+    labels = labels * scaled_samples
+    return torch.clip(labels / label_max_value, 0, 1)

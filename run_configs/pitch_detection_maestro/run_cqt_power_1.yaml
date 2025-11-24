@@ -1,0 +1,26 @@
+batch_size: 256
+device: cuda
+eval_interval: 20
+lr: 0.001
+model_config:
+  latent_dim: 256
+  dropout: 0.1
+  seq_len: 200
+  nhead: 8
+  d_model: 512
+  ffn_dim: 2048
+  num_layers: 12
+model_name: TokenTransformer
+num_workers: 8
+sample_duration: 10
+save: false
+sample_property: cqts
+transpose_samples: true
+transpose_labels: true
+bce_pos_weight: 1.0
+seq_len: 200
+split_train_set: 0.1
+steps: 500
+train_dataset_path: "{volume}/maestro_activation_50000sam_10sec/"
+warmup_fraction: 0.03
+weight_decay: 0.01

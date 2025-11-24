@@ -4,9 +4,7 @@ run_encodec_2.yaml,ec73wj0h,2025-11-14T12:54:10
 run_encodec_3.yaml,jjbzzpa4,2025-11-14T13:41:53
 run_encodec_4.yaml,5lz2wdy7,2025-11-14T13:58:46
 run_test_local.yaml,c3jlg54t,2025-11-20T18:21:52
-run_cqt_1.yaml,1ncgtqsu,2025-11-20T18:53:33
-run_cqt_1.yaml,jd4pbs27,2025-11-20T19:00:49
-run_cqt_1.yaml,8lppfclo,2025-11-20T19:07:06
-run_cqt_1.yaml,zl4xl52h,2025-11-20T19:15:50
-run_cqt_1.yaml,k1xqqy9b,2025-11-20T19:19:57
-run_cqt_1.yaml,agehlz33,2025-11-20T19:29:07
+run_cqt_activation_1.yaml,agehlz33,2025-11-20T19:29:07
+run_cqt_power_1.yaml,7qspva7b,2025-11-21T14:27:30
+run_cqt_power_1.yaml,eajv9hqi,2025-11-21T14:44:49
+run_cqt_power_1.yaml,7qxipi5b,2025-11-21T14:47:11

@@ -4,13 +4,12 @@ from typing import Dict, Optional, Tuple, List
 import matplotlib.cm as cm
 import numpy as np
 import torch
-import torch.nn.functional as F
 import wandb
-from torch import Tensor, Size
+from torch import Tensor
 from torch.nn import Module, BCEWithLogitsLoss
 from torch.utils.data import DataLoader, Dataset
 
-from .utils import log_to_wandb, normalize_samples
+from .utils import log_to_wandb, normalize_samples, prepare_labels, scale_2d
 
 LOG_SAMPLE_SEED = 2024
 LOG_SAMPLE_COUNT = 5
@@ -34,7 +33,7 @@ def evaluate(model: Module, data_loader: DataLoader, label_max_value: float, bce
         samples, labels = batch
 
         samples = normalize_samples(samples.to(device))
-        labels = labels.to(device)
+        labels = prepare_labels(labels.to(device), samples, label_max_value)
 
         logits = model(samples)
         loss = criterion(logits, labels)
@@ -66,7 +65,7 @@ def _prepare_logging_samples(
     loader = DataLoader(dataset, batch_size=count, shuffle=True, generator=torch.Generator().manual_seed(seed))
     samples, labels = next(iter(loader))
     samples = normalize_samples(samples.detach().to(dtype=torch.float32).cpu())
-    labels = torch.clip(labels.detach().to(dtype=torch.float32).cpu() / label_max_value, 0., 1.)
+    labels = prepare_labels(labels.detach().to(dtype=torch.float32).cpu(), samples, label_max_value)
 
     logging_samples: List[_LoggingSample] = []
     for i in range(count):
@@ -126,7 +125,7 @@ def _create_piano_roll_panel(label: Tensor, prediction: Tensor, sample: Tensor,
                              incl_sample: bool) -> np.ndarray:
     label_img = np.flip(np.clip(label.numpy(), 0.0, 1.0).astype(np.float32), axis=0)
     prediction_img = np.flip(np.clip(prediction.numpy(), 0.0, 1.0).astype(np.float32), axis=0)
-    sample = _scale(sample, label.shape)
+    sample = scale_2d(sample, label.shape)
     sample_img = np.flip(np.clip(sample.numpy(), 0.0, 1.0).astype(np.float32), axis=0)
 
     separator = np.ones((1, label_img.shape[1]), dtype=np.float32)
@@ -137,8 +136,3 @@ def _create_piano_roll_panel(label: Tensor, prediction: Tensor, sample: Tensor,
     rgba = cm.get_cmap('viridis')(panel_norm)  # (H, W, 4) floats in [0,1]
     rgb = (rgba[..., :3] * 255).astype('uint8')  # (H, W, 3) uint8
     return rgb
-
-
-def _scale(tensor: Tensor, shape: Size) -> Tensor:
-    return (F.interpolate(tensor.unsqueeze(0).unsqueeze(0), shape, mode="bilinear", align_corners=False)
-            .squeeze(0).squeeze(0))
