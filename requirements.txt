@@ -13,6 +13,7 @@ torchaudio>=2.9.0
 torchcodec>=0.8.0
 demucs~=4.0.1
 numpy>=2.1
+imageio>=2.36
 pandas~=2.2.3
 scikit-learn~=1.6.1
 soundfile>=0.13.1
