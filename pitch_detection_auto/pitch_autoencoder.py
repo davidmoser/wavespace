@@ -51,10 +51,10 @@ class PitchAutoencoder(nn.Module):
         self.synth = get_synth_model(cfg.synth_net_version, cfg)
 
     def forward(self, x):
-        # f = F.softplus(self.pitch_det_net(x))  # ensure a ≥ 0
         f = self.pitch_det_net(x)
-        s = self.synth(f)  # (B,1,F,T)
-        return s, f
+        f_sigmoid = torch.sigmoid(f)
+        s = self.synth(f_sigmoid)  # (B,1,F,T)
+        return s, f_sigmoid
 
 
 def entropy_term(a: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:

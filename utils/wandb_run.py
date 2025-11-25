@@ -35,7 +35,6 @@ def run_wandb_run(
         config_path: str,
         *,
         project: str,
-        run_namespace: str,
         endpoint: str,
         run_mode: str = "runpod",
 ):
@@ -57,7 +56,6 @@ def run_wandb_run(
     run = wandb.init(project=project, config=config_data)
 
     run_id = run.id
-    run_url = run.url or f"https://wandb.ai/{run_namespace}/runs/{run_id}"
 
     _record_run_details(
         run_id=run_id,

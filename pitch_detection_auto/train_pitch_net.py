@@ -2,32 +2,16 @@ import matplotlib.pyplot as plt
 import torch
 import wandb
 from torch.nn import BCEWithLogitsLoss
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import DataLoader
 
 from datasets.tensor_store import TensorStore
 from pitch_detection_auto.configuration import Configuration
+from pitch_detection_auto.evaluate import log_pitch_det_sample
 from pitch_detection_auto.pitch_autoencoder import get_pitch_det_model
+from pitch_detection_auto.utils import normalize_samples
 
 
-def log_sample(model, spec_tensor, current_step):
-    """Log original spec, reconstruction as one image."""
-    dev = next(model.parameters()).device
-    with torch.no_grad():
-        x = spec_tensor.unsqueeze(0).unsqueeze(0).float().to(dev)  # (1,1,F,T)
-        y = torch.sigmoid(model(x))
-
-    x_np = x.squeeze().cpu().numpy()
-    y_np = y[:, 0].squeeze().cpu().numpy()
-
-    fig, ax = plt.subplots(2, 1, figsize=(6, 7), constrained_layout=True)
-    for im, title, a in zip((x_np, y_np), ("original", "output"), ax):
-        a.imshow(im, aspect="auto", origin="lower", cmap="viridis")
-        a.set_title(title)
-        a.axis("off")
-
-    wandb.log({"epoch_samples": [wandb.Image(fig)]}, step=current_step)
-    plt.close(fig)
 
 
 def train(cfg: Configuration) -> None:
@@ -38,11 +22,11 @@ def train(cfg: Configuration) -> None:
     loader = DataLoader(dataset, batch_size=cfg.batch_size,
                         shuffle=True, pin_memory=False, num_workers=0)
 
-    vis_spec = normalize(dataset[0][0].to(dev).unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
+    vis_spec = normalize_samples(dataset[0][0].to(dev).unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
 
     model = get_pitch_det_model(version=cfg.pitch_det_version, cfg=cfg).to(dev)
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
-    scheduler = ExponentialLR(opt, gamma=1 - cfg.lr_decay)
+    scheduler = CosineAnnealingLR(opt, cfg.steps)
     criterion = BCEWithLogitsLoss(pos_weight=torch.tensor(1).to(dev))
 
     print(f"Training initial weights: {cfg.steps} steps, {cfg.batch_size} batch size")
@@ -54,7 +38,7 @@ def train(cfg: Configuration) -> None:
         print(f"Epoch {epoch}")
         for spec, _ in loader:  # (B,F,T)
             x = spec.to(dev).unsqueeze(1).float()  # (B, C=1, F, T)
-            x = normalize(x)
+            x = normalize_samples(x)
             y = model(x)  # (B, C=32, F, T)
             target = x.repeat(1, cfg.out_ch, 1, 1)  # (B, C=32, F, T)
             loss = criterion(y, target)
@@ -71,12 +55,9 @@ def train(cfg: Configuration) -> None:
             if current_step % cfg.eval_interval == 0:
                 print(f"Step {current_step}")
                 model.eval()
-                log_sample(model, vis_spec, current_step)
+                log_pitch_det_sample(model, vis_spec, current_step)
                 model.train()
 
-        model.eval()
-        log_sample(model, vis_spec, current_step)
-        model.train()
         epoch += 1
         if current_step >= cfg.steps:
             break
@@ -86,11 +67,3 @@ def train(cfg: Configuration) -> None:
         torch.save(model.state_dict(), cfg.pitch_det_file)
 
     print("Done")
-
-
-def normalize(samples: torch.Tensor) -> torch.Tensor:
-    # samples = torch.log(samples)
-    mins = samples.amin(dim=(2,), keepdim=True)
-    maxs = samples.amax(dim=(2,), keepdim=True)
-    samples = (samples - mins) / (maxs - mins + 1e-4)
-    return samples

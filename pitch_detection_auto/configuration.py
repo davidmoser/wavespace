@@ -12,7 +12,6 @@ class Configuration:
     out_ch: int = 32
     lr: float = 1e-3
     pitch_det_lr: float | None = None
-    lr_decay: float = 0.0
     kernel_f_len: int = 128
     kernel_t_len: int = 1
     kernel_random: bool = False
