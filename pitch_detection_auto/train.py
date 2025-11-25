@@ -1,4 +1,3 @@
-import os
 from dataclasses import asdict
 
 import matplotlib.pyplot as plt
@@ -8,21 +7,32 @@ import wandb
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.data import DataLoader
 
+from datasets.tensor_store import TensorStore
 from pitch_detection_auto import train_pitch_net
 from pitch_detection_auto.configuration import Configuration
 from pitch_detection_auto.pitch_autoencoder import PitchAutoencoder, entropy_term
+from utils.wandb_basic import login_to_wandb
+
+PROJECT_NAME = "pitch-detection-auto"
 
 
 def sweep_run():
-    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
-    wandb.init(project="pitch-detection")
+    login_to_wandb()
+    wandb.init(project=PROJECT_NAME)
     cfg = wandb.config
     train(Configuration(**cfg.as_dict()))
 
 
 def single_run(cfg: Configuration):
-    wandb.login(key=os.environ["WANDB_API_KEY"], verify=True)
-    wandb.init(project="pitch-detection", config=asdict(cfg))
+    login_to_wandb()
+    wandb.init(project=PROJECT_NAME, config=asdict(cfg))
+    train(cfg)
+
+
+def single_run_resume(run_id: str) -> None:
+    login_to_wandb()
+    wandb.init(project=PROJECT_NAME, id=run_id, resume="must")
+    cfg = Configuration(**wandb.config.as_dict())
     train(cfg)
 
 
@@ -96,10 +106,10 @@ def train(cfg: Configuration):
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {dev}")
 
-    data = torch.load(cfg.spec_file, mmap=True, map_location=dev)  # (n,
-    loader = DataLoader(data, batch_size=cfg.batch, shuffle=True, num_workers=0)
+    dataset = TensorStore(cfg.dataset_path, transpose_samples=False, transpose_labels=False, sample_property="cqts")
+    loader = DataLoader(dataset, batch_size=cfg.batch_size, shuffle=True, num_workers=cfg.num_workers)
 
-    sample_specs = data[0:4].to(dev)
+    sample_specs = dataset[0:4].to(dev)
 
     model = PitchAutoencoder(cfg=cfg).to(dev)
     # load either just the pitch_det_net or the whole pitch_autoencoder (pitch_det + synth_net)
@@ -117,7 +127,7 @@ def train(cfg: Configuration):
         )
     else:
         opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr)
-    sch = ExponentialLR(opt, gamma=cfg.lr_decay)
+    sch = ExponentialLR(opt, gamma=1 - cfg.lr_decay)
     l0 = torch.nn.MSELoss()
 
     if wandb.run:

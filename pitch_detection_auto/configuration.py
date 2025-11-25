@@ -3,14 +3,16 @@ from dataclasses import dataclass
 
 @dataclass
 class Configuration:
-    spec_file: str | None = None
-    epochs: int = 50
-    batch: int = 32
+    dataset_path: str = None
+    num_workers: int = 0
+    steps: int = 50
+    eval_interval: int = 10
+    batch_size: int = 32
     base_ch: int = 16
     out_ch: int = 32
     lr: float = 1e-3
     pitch_det_lr: float | None = None
-    lr_decay: float = 0.98
+    lr_decay: float = 0.0
     kernel_f_len: int = 128
     kernel_t_len: int = 1
     kernel_random: bool = False

@@ -12,6 +12,7 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset, random_split
 
 from datasets.tensor_store import TensorStore
+from utils.wandb_basic import log_to_wandb, update_wandb_summary, login_to_wandb
 from .configuration import Configuration
 from .dilated_tcn import DilatedTCN
 from .evaluate import (
@@ -22,8 +23,7 @@ from .evaluate import (
 )
 from .local_context_mlp import LocalContextMLP
 from .token_transformer import TokenTransformer
-from .utils import create_warmup_cosine_lr, log_to_wandb, update_wandb_summary, resolve_device, \
-    login_to_wandb, normalize_samples, prepare_labels
+from .utils import create_warmup_cosine_lr, resolve_device, normalize_samples, prepare_labels
 
 PROJECT_NAME = "pitch-detection-supervised"
 
@@ -67,7 +67,7 @@ def train(config: Configuration) -> Dict[str, Optional[float]]:
 
     for epoch in range(1, epochs + 1):
         print(f"Epoch {epoch}")
-        for batch_idx, batch in enumerate(train_loader, start=1):
+        for batch in train_loader:
             optimizer.zero_grad(set_to_none=True)
 
             samples, labels = batch  # samples: B x L x T targets: B x F x T

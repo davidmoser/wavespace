@@ -1,0 +1,26 @@
+dataset_path: "{volume}/maestro_cqts/maestro_activation_50000sam_10sec/"
+steps: 100
+eval_interval: 10
+num_workers: 0
+batch_size: 16
+base_ch: 16
+out_ch: 32
+lr: 0.01
+pitch_det_lr: 0.001
+lr_decay: 0
+kernel_f_len: 128
+kernel_t_len: 1
+kernel_random: bool = False
+kernel_value: 0.01
+force_f0: False
+init_f0: "point"  # options: "none", "point", "exponential"
+lambda1: float = 1e-3  # dual variable learning rate
+lambda2: float = 0.6  # \u03b1 in constraint H(q) <= \u03b1 H(p)
+lambda_init: float = 0.0  # initial dual variable value
+train_pitch_det_only: True
+pitch_det_file: "{volume}/checkpoints/pitch_detection_auto/pitch_det_net_initial_weights_maestro_v4.pt"
+pitch_autoenc_file: str = None
+save_model: True
+save_file: "{volume}/checkpoints/pitch_detection_auto/pitch_det_net_initial_weights_maestro_v4.pt"
+pitch_det_version: str = "v4"
+synth_net_version: str = "v1"

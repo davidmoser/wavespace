@@ -1,6 +1,5 @@
-import math
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -47,4 +46,3 @@ class Configuration:
     train_dataset_path: str = None
     val_dataset_path: str | None = None
     split_train_set: Optional[float] = None
-

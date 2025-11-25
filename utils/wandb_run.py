@@ -1,4 +1,5 @@
 import csv
+import importlib
 import json
 import os
 from datetime import datetime
@@ -8,8 +9,6 @@ from typing import Any, MutableMapping, Sequence
 import requests
 import wandb
 import yaml
-
-from pitch_detection_supervised.train import single_run_resume
 
 
 def _format_values(value: Any, format_kwargs: dict[str, Any]) -> Any:
@@ -80,6 +79,10 @@ def run_wandb_run(
         job_id = response.json()["id"]
         print(f"Job ID: {job_id}")
     elif run_mode == "local":
+        # Dynamically import the single_run_resume method, a bit fragile, but better than circular package imports
+        module_path = project.replace("-", "_") + ".train"
+        module = importlib.import_module(module_path)
+        single_run_resume = getattr(module, "single_run_resume")
         single_run_resume(run_id)
     elif run_mode == "docker":
         path = "../../docker/pitch_detection_supervised/test_input.json"

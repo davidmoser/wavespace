@@ -9,7 +9,8 @@ from torch import Tensor
 from torch.nn import Module, BCEWithLogitsLoss
 from torch.utils.data import DataLoader, Dataset
 
-from .utils import log_to_wandb, normalize_samples, prepare_labels, scale_2d
+from utils.wandb_basic import log_to_wandb
+from .utils import normalize_samples, prepare_labels, scale_2d
 
 LOG_SAMPLE_SEED = 2024
 LOG_SAMPLE_COUNT = 5

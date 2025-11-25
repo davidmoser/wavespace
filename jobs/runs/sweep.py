@@ -10,7 +10,7 @@ from utils import run_wandb_sweep
 
 # run_wandb_sweep(
 #     config_path="../run_configs/other/pitch_detection_auto.yaml",
-#     project="pitch-detection",
+#     project="pitch-detection-auto",
 #     sweep_namespace="david-moser-ggg/pitch-detection",
 #     endpoint="1a86ns2fgeghvt",
 # )
