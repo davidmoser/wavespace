@@ -6,6 +6,7 @@ COPY /docker/pitch_detection_supervised/sweep_run.py /sweep_run.py
 COPY /docker/pitch_detection_supervised/single_run.py /single_run.py
 COPY /pitch_detection_supervised /pitch_detection_supervised/
 COPY /datasets /datasets/
+COPY /utils /utils/
 
 COPY /docker/pitch_detection_supervised/test_input.json /test_input.json
 

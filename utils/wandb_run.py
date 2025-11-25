@@ -63,6 +63,8 @@ def run_wandb_run(
         config_filename=config_file.name,
     )
 
+    module_name = project.replace("-", "_")
+
     if run_mode == "runpod":
         runpod_api_key = os.environ["RUNPOD_API_KEY"]
         headers = {"Authorization": f"Bearer {runpod_api_key}"}
@@ -78,12 +80,11 @@ def run_wandb_run(
         print(f"Job ID: {job_id}")
     elif run_mode == "local":
         # Dynamically import the single_run_resume method, a bit fragile, but better than circular package imports
-        module_path = project.replace("-", "_") + ".train"
-        module = importlib.import_module(module_path)
+        module = importlib.import_module(module_name + ".train")
         single_run_resume = getattr(module, "single_run_resume")
         single_run_resume(run_id)
     elif run_mode == "docker":
-        path = "../../docker/pitch_detection_supervised/test_input.json"
+        path = f"../../docker/{module_name}/test_input.json"
         with open(path) as f:
             data = json.load(f)
         data["input"]["run_id"] = run_id

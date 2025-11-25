@@ -2,10 +2,10 @@ from utils import run_wandb_run
 
 
 run_wandb_run(
-    config_path="../../run_configs/pitch_detection_auto/run_train_local.yaml",
+    config_path="../../run_configs/pitch_detection_auto/run_train_3.yaml",
     project="pitch-detection-auto",
     endpoint="1a86ns2fgeghvt",
-    run_mode="local",
+    run_mode="runpod",
 )
 
 

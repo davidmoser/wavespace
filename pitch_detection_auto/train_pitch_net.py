@@ -48,15 +48,15 @@ def train(cfg: Configuration) -> None:
             current_step += 1
             scheduler.step()
 
-            if current_step >= cfg.steps:
-                break
-
             wandb.log({"loss": loss.item()}, step=current_step)
             if current_step % cfg.eval_interval == 0:
                 print(f"Step {current_step}")
                 model.eval()
                 log_pitch_det_sample(model, vis_spec, current_step)
                 model.train()
+
+            if current_step >= cfg.steps:
+                break
 
         epoch += 1
         if current_step >= cfg.steps:

@@ -96,12 +96,8 @@ def train(cfg: Configuration):
             current_step += 1
             scheduler.step()
 
-            if current_step >= cfg.steps:
-                break
-
             # dual ascent step
             lam = max(0.0, lam + cfg.lambda1 * loss1.item())
-
             wandb.log({"loss": loss.item(), "loss0": loss0, "loss1": loss1, "lam": lam}, step=current_step)
 
             if current_step % cfg.eval_interval == 0:
@@ -110,6 +106,9 @@ def train(cfg: Configuration):
                 log_autoencoder_sample(model, sample_specs, current_step)
                 log_synth_kernels(model, step=current_step, hide_f0=cfg.init_f0)
                 model.train()
+
+            if current_step >= cfg.steps:
+                break
 
         epoch += 1
         if current_step >= cfg.steps:
