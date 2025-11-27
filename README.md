@@ -9,17 +9,17 @@
 
 **Key findings**
 
-* Unsupervised pitch learning in latent space difficult
-* Autoencoding vs latent structure needs tradeoff
-* Supervised training simpler
-* Conv models often stronger than transformer baselines
-* Tooling with YAML configs and wandb control speeds up experiment cycle
+* Unsupervised training: Pitch salience prediction in latent space is difficult, because of the delicate tradeoff
+  between latent space control and autoencoding fidelity.
+* Supervised training: Conv models are often stronger than transformers. Transformers don't learn time dependent
+  structures well in spectrograms, because consecutive frames are very close together as vectors.
+* Automated tooling with YAML configs, W&B and parallel Runpod workers speeds up experiment cycle
 
 **Tooling**
 
-* Pipeline for local and remote runs
-* wandb for tracking and sweeps
-* runpod for training
+* One click scripts for local and remote runs
+* W&B for tracking and sweeps
+* Runpod for training on multiple workers
 * GitHub and Codex workflows for iteration
 
 
@@ -51,6 +51,16 @@ graph LR
 
 ### Autoencoding of spectrograms with UNet and ConvNet
 
+* Warmup for working with sound, spectra and audio architectures
+* Goal: Use a convolutional encoder-decoder and a UNet on spectrograms, check fidelity
+* Dataset: Medley Solos DB, 21k samples, 2s duration, solos of 7 instruments & singer, 11 GB
+
 ### Pitch salience with UNet and linear reconstruction self supervised
 
+* Dataset: Medley Solos DB, 21k samples, 2s duration, solos of 7 instruments & singer, 11 GB 
+* Dataset: Maestro Dataset, piano recordings with Midi labels, 129 GB, processed to 10k chunks, 20s each, only samples
+
 ### Pitch salience with Encodec latents and transformer supervised
+
+* Dataset: Synthetic non-Midi-pitch polyphonic samples, mixing pitches, durations, envelopes, timbres, 1 GB
+* Dataset: Maestro Dataset, piano recordings with Midi labels, 129 GB, processed to 50k chunks, 10s each
