@@ -22,7 +22,6 @@
 * Runpod for training on multiple workers
 * GitHub and Codex workflows for iteration
 
-
 ## Shared Infrastructure
 
 * Per-experiment packages hold model code, **Python** and **Torch**
@@ -51,16 +50,42 @@ graph LR
 
 ### Autoencoding of spectrograms with UNet and ConvNet
 
-* Warmup for working with sound, spectra and audio architectures
-* Goal: Use a convolutional encoder-decoder and a UNet on spectrograms, check fidelity
+#### Abstract
+
+This project explores spectrogram autoencoding using UNet variants and both 1D and 2D convolutional architectures. The 
+aim was to achieve high-fidelity reconstruction while gaining practical experience with spectrogram preprocessing, audio 
+datasets, and neural architectures. Hyperparameter sweeps covered channel counts, learning rates, and batch sizes.
+
+#### Methods
+
 * Dataset: Medley Solos DB, 21k samples, 2s duration, solos of 7 instruments & singer, 11 GB
+* Samples: log-frequency spectrograms and melspectrograms, 256 frequency bins, 173 time bins
+* Architectures: UNet, 1D- and 2D- ConvNets, up to 1024 channels
 
-### Pitch salience with UNet and linear reconstruction self supervised
+#### Results
 
-* Dataset: Medley Solos DB, 21k samples, 2s duration, solos of 7 instruments & singer, 11 GB 
+UNet models produced strong fidelity, down to a L1-loss of 0.77, likely due to their skip-connection bypass paths, while pure ConvNets achieved moderate
+but consistent reconstruction quality.
+
+### Pitch salience with UNet and convolution self supervised
+
+#### Abstract
+
+#### Methods
+
+* Dataset: Medley Solos DB, 21k samples, 2s duration, solos of 7 instruments & singer, 11 GB
 * Dataset: Maestro Dataset, piano recordings with Midi labels, 129 GB, processed to 10k chunks, 20s each, only samples
+
+#### Results
 
 ### Pitch salience with Encodec latents and transformer supervised
 
+#### Abstract
+
+#### Methods
+
 * Dataset: Synthetic non-Midi-pitch polyphonic samples, mixing pitches, durations, envelopes, timbres, 1 GB
 * Dataset: Maestro Dataset, piano recordings with Midi labels, 129 GB, processed to 50k chunks, 10s each
+
+#### Results
+
