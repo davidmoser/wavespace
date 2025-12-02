@@ -9,11 +9,22 @@
 
 **Key findings**
 
-* Unsupervised training: Pitch salience prediction in latent space showed success on some instruments. But the tradeoff
-  between latent space control and reconstruction fidelity is delicate.
-* Supervised training: Conv models are often stronger than transformers. Transformers don't learn time dependent
-  structures well in spectrograms, because consecutive frames are very close together as vectors.
-* Automated tooling with YAML configs, W&B and parallel Runpod workers speeds up experiment cycle.
+**Spectrogram autoencoders:** UNet variants reach high reconstruction fidelity (down to L1 ≈ 0.77), likely by bypassing the
+bottleneck via skip connections, while plain ConvNets give more modest but stable reconstructions and a more regular
+latent space, where singers already separate reasonably well from instruments.
+
+**Unsupervised pitch salience:** A dual-gradient entropy constraint on the latent map produces interpretable,
+instrument-specific channels and harmonic kernels and can suppress higher harmonics on piano to yield a clean f₀
+saliency map, but it does not generalize as well to other instruments, suggesting limits from overtone structure and
+dataset bias.
+
+**Supervised pitch prediction:** In this setup, transformers on EnCodec latents and CQT spectrograms struggle to exploit
+local temporal structure, show training instabilities, and stay well below state-of-the-art piano transcription
+performance, while simpler convolutional and local-context models are often more robust.
+
+**Infrastructure and experimentation:** YAML-configured sweeps, W&B tracking, and parallel Runpod workers make it cheap to
+explore architectures, hyperparameters, and loss formulations end-to-end, and this automated tooling became a central
+outcome of the project alongside the model results themselves.
 
 **Tooling**
 
@@ -146,9 +157,21 @@ EnCodec latents.
 * Dataset: Maestro Dataset, piano recordings with Midi labels, 129 GB, processed to 50k chunks, 10s each
 * Sweep fits for learning rate, weight decay, dropout rate (for example Figure 5)
 
-<img src="results/pitch_detection_supervised_power/power_sweep1_lr_loss.png" alt="Plot of loss vs learning rate" style="width: 70%;">
+<img src="results/pitch_detection_supervised_power/power_sweep1_lr_loss.png" alt="Plot of loss vs learning rate" style="width: 50%;">
 
 **Figure 5:** Plot of loss vs learning rate
 
 #### Results
 
+In this simple approach transformers struggled to exploit temporal
+structure in spectrograms and EnCodec latents, where consecutive frames are nearly collinear, and training sometimes
+showed instabilities early or late in runs. On EnCodec latents, visual inspection suggested both precision and
+sensitivity remained below about 60%. The CQT-based approach worked better, since piano CQT spectrograms already
+resemble a pitch-saliency map (apart from some f1 resonances), but performance still fell well short of state-of-the-art
+piano transcription, which reports above 90% precision and accuracy (Scoring Time Intervals using Non-Hierarchical
+Transformer for Automatic Piano Transcription, Yujia Yan and Zhiyao Duan, 2024).
+
+<img src="results/pitch_detection_supervised_power/cqt_approach_sample.png" alt="Sample" style="width: 50%;">
+
+**Figure 6:** Sample of CQT-spectrogram input (bottom), transformer architecture output (middle) and label (pitch power
+salience, top)
