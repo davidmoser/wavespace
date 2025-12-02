@@ -9,11 +9,11 @@
 
 **Key findings**
 
-* Unsupervised training: Pitch salience prediction in latent space is difficult, because of the delicate tradeoff
-  between latent space control and autoencoding fidelity.
+* Unsupervised training: Pitch salience prediction in latent space showed success on some instruments. But the tradeoff
+  between latent space control and reconstruction fidelity is delicate.
 * Supervised training: Conv models are often stronger than transformers. Transformers don't learn time dependent
   structures well in spectrograms, because consecutive frames are very close together as vectors.
-* Automated tooling with YAML configs, W&B and parallel Runpod workers speeds up experiment cycle
+* Automated tooling with YAML configs, W&B and parallel Runpod workers speeds up experiment cycle.
 
 **Tooling**
 
@@ -65,7 +65,9 @@ datasets, and neural architectures.
 
 #### Results
 
-![Figure 1: PCA of UNet latent space distribution](results/spectrogram_autoencoder/pca_v4.png)
+<img src="results/spectrogram_autoencoder/pca_v4.png" alt="PCA of UNet latent space distribution" style="width: 70%;">
+
+**Figure 1:** PCA of UNet latent space distribution
 
 UNet models produced strong fidelity, down to a L1-loss of 0.77, likely due to their skip-connection bypass paths, while
 pure ConvNets achieved moderate but consistent reconstruction quality. Figure 1 shows a PCA of the latent space, showing
@@ -131,10 +133,22 @@ instruments have a higher content in overtones or that the dataset was biased to
 
 #### Goal
 
+The goal was to learn supervised pitch-saliency predictors from audio, using both a synthetic dataset and the MAESTRO
+piano recordings with MIDI labels as ground truth. In the first part, I worked on EnCodec latent representations and
+compared several sequence architectures for pitch-saliency estimation (local-context MLP, dilated TCN, and transformer).
+In the second part, I trained a transformer directly on CQT spectrograms to predict pitch saliency without going through
+EnCodec latents.
+
 #### Methods
 
+* Preprocessing: Encodec pre quant latents, CQT spectrograms
 * Dataset: Synthetic non-Midi-pitch polyphonic samples, mixing pitches, durations, envelopes, timbres, 1 GB
 * Dataset: Maestro Dataset, piano recordings with Midi labels, 129 GB, processed to 50k chunks, 10s each
+* Sweep fits for learning rate, weight decay, dropout rate (for example Figure 5)
+
+<img src="results/pitch_detection_supervised_power/power_sweep1_lr_loss.png" alt="Plot of loss vs learning rate" style="width: 70%;">
+
+**Figure 5:** Plot of loss vs learning rate
 
 #### Results
 
